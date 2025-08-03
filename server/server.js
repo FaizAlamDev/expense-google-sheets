@@ -14,13 +14,26 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.REDIRECT_URI
 );
 
-let tokens;
-try {
-  tokens = JSON.parse(fs.readFileSync("tokens.json"));
-  oauth2Client.setCredentials(tokens);
-  console.log("Loaded existing tokens");
-} catch (err) {
-  console.log("No saved tokens found");
+const TOKEN_PATH = "tokens.json";
+
+async function initializeAuth() {
+  try {
+    if (fs.existsSync(TOKEN_PATH)) {
+      const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH));
+      oauth2Client.setCredentials(tokens);
+      console.log("Loaded existing tokens");
+    }
+
+    oauth2Client.on("tokens", (tokens) => {
+      const current = fs.existsSync(TOKEN_PATH)
+        ? JSON.parse(fs.readFileSync(TOKEN_PATH))
+        : {};
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify({ ...current, ...tokens }));
+      console.log("Tokens updated");
+    });
+  } catch (err) {
+    console.error("Auth error:", err);
+  }
 }
 
 app.get("/auth", (req, res) => {
@@ -35,11 +48,10 @@ app.get("/auth/callback", async (req, res) => {
   const { code } = req.query;
   const { tokens } = await oauth2Client.getToken(code);
 
-  fs.writeFileSync("tokens.json", JSON.stringify(tokens));
+  fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
   oauth2Client.setCredentials(tokens);
 
   res.send("Authentication successful! You can now post data");
-  res.redirect("/");
 });
 
 app.get("/post-data", async (req, res) => {
@@ -58,7 +70,9 @@ app.get("/post-data", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`App running listening on PORT ${PORT}`);
+initializeAuth().then(() => {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`App running listening on PORT ${PORT}`);
+  });
 });
