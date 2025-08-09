@@ -54,25 +54,33 @@ app.get("/auth", (req, res) => {
 });
 
 app.get("/auth/callback", async (req, res) => {
-  const { code } = req.query;
-  const { tokens } = await oauth2Client.getToken(code);
+  try {
+    const { code } = req.query;
+    const { tokens } = await oauth2Client.getToken(code);
 
-  fs.writeFileSync(
-    TOKEN_PATH,
-    JSON.stringify({
-      ...tokens,
-      refresh_token: tokens.refresh_token,
-    })
-  );
-  oauth2Client.setCredentials(tokens);
+    fs.writeFileSync(
+      TOKEN_PATH,
+      JSON.stringify({
+        ...tokens,
+        refresh_token: tokens.refresh_token,
+      })
+    );
+    oauth2Client.setCredentials(tokens);
 
-  res.send("Authentication successful! You can now post data");
+    res.send("Authentication successful! You can now post data");
+  } catch (err) {
+    res.status(500).send(`Error: ${err.message}`);
+  }
 });
 
 const MAX_DAILY_EXPENSES = 10;
 const TOTAL_COLUMN = "L";
 
 app.post("/api/expenses", async (req, res) => {
+  if (!oauth2Client.credentials) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
   const { date, expenses } = req.body;
   const sheets = google.sheets({ version: "v4", auth: oauth2Client });
 
@@ -164,13 +172,20 @@ app.post("/api/expenses", async (req, res) => {
 
     res.json({ success: true, row });
   } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
+    console.error(
+      "Sheets API error:",
+      err.response?.data?.error || err.message
+    );
+    res.status(500).json({
+      error: "Failed to save expenses",
+      details: err.response?.data?.error,
+    });
   }
 });
 
 initializeAuth().then(() => {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`App running listening on PORT ${PORT}`);
+    console.log(`Server listening on PORT ${PORT}`);
   });
 });
