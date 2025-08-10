@@ -1,77 +1,15 @@
 const { google } = require("googleapis");
 const express = require("express");
-const fs = require("fs");
 const cors = require("cors");
 require("dotenv").config();
+const oauth2Client = require("./config/oauth");
+const { initializeAuth } = require("./utils/auth");
+const routes = require("./routes");
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.CLIENT_ID,
-  process.env.CLIENT_SECRET,
-  process.env.REDIRECT_URI
-);
-
-const TOKEN_PATH = "tokens.json";
-
-async function initializeAuth() {
-  try {
-    if (fs.existsSync(TOKEN_PATH)) {
-      const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH));
-      oauth2Client.setCredentials(tokens);
-      console.log("Loaded existing tokens");
-    }
-
-    oauth2Client.on("tokens", (newTokens) => {
-      let current = {};
-      if (fs.existsSync(TOKEN_PATH)) {
-        current = JSON.parse(fs.readFileSync(TOKEN_PATH));
-      }
-
-      const updatedTokens = {
-        ...current,
-        ...newTokens,
-        refresh_token: newTokens.refresh_token || current.refresh_token,
-      };
-
-      fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens));
-      console.log("Tokens updated");
-    });
-  } catch (err) {
-    console.error("Auth error:", err);
-  }
-}
-
-app.get("/auth", (req, res) => {
-  const url = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/spreadsheets"],
-    prompt: "consent",
-  });
-  res.redirect(url);
-});
-
-app.get("/auth/callback", async (req, res) => {
-  try {
-    const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code);
-
-    fs.writeFileSync(
-      TOKEN_PATH,
-      JSON.stringify({
-        ...tokens,
-        refresh_token: tokens.refresh_token,
-      })
-    );
-    oauth2Client.setCredentials(tokens);
-
-    res.send("Authentication successful! You can now post data");
-  } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
-  }
-});
+app.use("/", routes);
 
 const MAX_DAILY_EXPENSES = 10;
 const TOTAL_COLUMN = "L";
@@ -183,9 +121,14 @@ app.post("/api/expenses", async (req, res) => {
   }
 });
 
-initializeAuth().then(() => {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`Server listening on PORT ${PORT}`);
+initializeAuth()
+  .then(() => {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server listening on PORT ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Fatal auth initialization error:", err);
+    process.exit(1);
   });
-});
