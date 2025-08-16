@@ -24,11 +24,19 @@ async function initializeAuth() {
       console.log("Loaded existing tokens");
     }
 
-    oauth2Client.on("tokens", (tokens) => {
-      const current = fs.existsSync(TOKEN_PATH)
-        ? JSON.parse(fs.readFileSync(TOKEN_PATH))
-        : {};
-      fs.writeFileSync(TOKEN_PATH, JSON.stringify({ ...current, ...tokens }));
+    oauth2Client.on("tokens", (newTokens) => {
+      let current = {};
+      if (fs.existsSync(TOKEN_PATH)) {
+        current = JSON.parse(fs.readFileSync(TOKEN_PATH));
+      }
+
+      const updatedTokens = {
+        ...current,
+        ...newTokens,
+        refresh_token: newTokens.refresh_token || current.refresh_token,
+      };
+
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens));
       console.log("Tokens updated");
     });
   } catch (err) {
@@ -40,6 +48,7 @@ app.get("/auth", (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/spreadsheets"],
+    prompt: "consent",
   });
   res.redirect(url);
 });
@@ -48,7 +57,13 @@ app.get("/auth/callback", async (req, res) => {
   const { code } = req.query;
   const { tokens } = await oauth2Client.getToken(code);
 
-  fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
+  fs.writeFileSync(
+    TOKEN_PATH,
+    JSON.stringify({
+      ...tokens,
+      refresh_token: tokens.refresh_token,
+    })
+  );
   oauth2Client.setCredentials(tokens);
 
   res.send("Authentication successful! You can now post data");
