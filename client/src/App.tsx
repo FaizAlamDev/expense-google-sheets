@@ -1,4 +1,5 @@
 import { useState, type SyntheticEvent } from "react";
+import "./App.css";
 
 function App() {
   const [date, setDate] = useState("");
