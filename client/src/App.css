@@ -18,7 +18,7 @@ form {
   border: 1px solid #ddd;
   border-radius: 8px;
   max-width: 320px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 form div {
@@ -62,9 +62,30 @@ button:hover {
   background: #496563;
 }
 
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  max-width: 320px;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  max-width: 320px;
+  font-size: 0.9rem;
+}
+
 footer {
   margin-top: 1.5rem;
   font-size: 0.85rem;
   color: #666;
 }
-

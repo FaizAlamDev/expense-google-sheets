@@ -5,12 +5,16 @@ function App() {
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function logExpense(e: SyntheticEvent) {
     e.preventDefault();
-    setDate("");
-    setName("");
-    setAmount("");
+    setIsLoading(true);
+    setError("");
+    setSuccess("");
+
     try {
       const response = await fetch("/api/expenses", {
         method: "POST",
@@ -31,10 +35,29 @@ function App() {
       if (!response.ok) {
         throw new Error(`HTTP Error! Status: ${response.status}`);
       }
+      setDate("");
+      setName("");
+      setAmount("");
+
+      setSuccess("Expense logged successfully");
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+
       return await response.json();
     } catch (err) {
       console.error(`Error submitting expense: ${err}`);
+      setError(
+        `Failed to log expense: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+      setTimeout(() => {
+        setError("");
+      }, 5000);
       throw err;
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -42,6 +65,9 @@ function App() {
     <>
       <h1>Expense Logging App</h1>
       <div>
+        {success && <div className="success-message">{success}</div>}
+        {error && <div className="error-message">{error}</div>}
+
         <form onSubmit={logExpense}>
           <div>
             <label htmlFor="date">Date: </label>
@@ -75,7 +101,9 @@ function App() {
               required
             />
           </div>
-          <button type="submit">Submit</button>
+          <button type="submit" disabled={isLoading}>
+            {isLoading ? "Submitting..." : "Submit"}
+          </button>
         </form>
       </div>
       <footer>
