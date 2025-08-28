@@ -1,13 +1,38 @@
 import { useState, type SyntheticEvent } from "react";
+import type { Expense } from "./types";
 import "./App.css";
 
 function App() {
   const [date, setDate] = useState("");
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
+  const [expenses, setExpenses] = useState<Expense[]>([
+    { name: "", amount: "" },
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const addExpense = () => {
+    if (expenses.length < 10) {
+      setExpenses([...expenses, { name: "", amount: "" }]);
+    }
+  };
+
+  const removeExpense = (index: number) => {
+    if (expenses.length > 1) {
+      setExpenses(expenses.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateExpense = (
+    index: number,
+    field: keyof Expense,
+    value: string
+  ) => {
+    const updatedExpenses = expenses.map((expense, i) =>
+      i === index ? { ...expense, [field]: value } : expense
+    );
+    setExpenses(updatedExpenses);
+  };
 
   async function logExpense(e: SyntheticEvent) {
     e.preventDefault();
@@ -23,12 +48,10 @@ function App() {
         },
         body: JSON.stringify({
           date,
-          expenses: [
-            {
-              name,
-              amount,
-            },
-          ],
+          expenses: expenses.map((expense) => ({
+            name: expense.name,
+            amount: expense.amount,
+          })),
         }),
       });
 
@@ -36,8 +59,7 @@ function App() {
         throw new Error(`HTTP Error! Status: ${response.status}`);
       }
       setDate("");
-      setName("");
-      setAmount("");
+      setExpenses([{ name: "", amount: "" }]);
 
       setSuccess("Expense logged successfully");
       setTimeout(() => {
@@ -61,6 +83,8 @@ function App() {
     }
   }
 
+  const remainingSlots = 10 - expenses.length;
+
   return (
     <>
       <h1>Expense Logging App</h1>
@@ -79,30 +103,60 @@ function App() {
               required
             />
           </div>
-          <div>
-            <label htmlFor="name">Name: </label>
-            <input
-              id="name"
-              type="text"
-              name="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="amount">Amount: </label>
-            <input
-              id="amount"
-              type="number"
-              name="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
+
+          {expenses.map((expense, index) => (
+            <div key={index} className="expense-entry">
+              <h3>Expense {index + 1}</h3>
+              <div>
+                <label htmlFor={`name-${index}`}>Name: </label>
+                <input
+                  id={`name-${index}`}
+                  type="text"
+                  value={expense.name}
+                  onChange={(e) => updateExpense(index, "name", e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor={`amount-${index}`}>Amount: </label>
+                <input
+                  id={`amount-${index}`}
+                  type="number"
+                  value={expense.amount}
+                  onChange={(e) =>
+                    updateExpense(index, "amount", e.target.value)
+                  }
+                  required
+                />
+              </div>
+              {expenses.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeExpense(index)}
+                  className="remove-btn"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+
+          <div className="add-expense-section">
+            <button
+              type="button"
+              onClick={addExpense}
+              disabled={expenses.length >= 10}
+              className="add-btn"
+            >
+              Add Additional Expense ({remainingSlots} slots remaining)
+            </button>
           </div>
           <button type="submit" disabled={isLoading}>
-            {isLoading ? "Submitting..." : "Submit"}
+            {isLoading
+              ? "Submitting..."
+              : `Submit ${expenses.length} Expense${
+                  expenses.length > 1 ? "s" : ""
+                }`}
           </button>
         </form>
       </div>
