@@ -10,6 +10,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [remainingSlots, setRemainingSlots] = useState<number>();
 
   const addExpense = () => {
     if (expenses.length < 10) {
@@ -60,6 +61,7 @@ function App() {
       }
       setDate("");
       setExpenses([{ name: "", amount: "" }]);
+      setRemainingSlots(undefined);
 
       setSuccess("Expense logged successfully");
       setTimeout(() => {
@@ -83,7 +85,17 @@ function App() {
     }
   }
 
-  const remainingSlots = 10 - expenses.length;
+  async function findAvailableSlots(e: React.ChangeEvent<HTMLInputElement>) {
+    setDate(e.target.value);
+    const response = await fetch(
+      `api/getAvailableSlots?date=${encodeURIComponent(e.target.value)}`
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to fetch available slots");
+    }
+    setRemainingSlots(data.availableSlots);
+  }
 
   return (
     <>
@@ -99,7 +111,7 @@ function App() {
               id="date"
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={findAvailableSlots}
               required
             />
           </div>
@@ -145,13 +157,15 @@ function App() {
             <button
               type="button"
               onClick={addExpense}
-              disabled={expenses.length >= 10}
+              disabled={expenses.length >= (remainingSlots ?? 0)}
               className="add-btn"
             >
-              Add Additional Expense ({remainingSlots} slots remaining)
+              {remainingSlots !== undefined
+                ? `Add Additional Expense, ${remainingSlots} slots remaining`
+                : "Add Additional Expense"}
             </button>
           </div>
-          <button type="submit" disabled={isLoading}>
+          <button type="submit" disabled={isLoading || !remainingSlots}>
             {isLoading
               ? "Submitting..."
               : `Submit ${expenses.length} Expense${

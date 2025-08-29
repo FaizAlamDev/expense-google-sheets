@@ -48,7 +48,7 @@ input:focus {
 }
 
 button {
-  background: #5a7d7c;
+  background: #194586;
   color: #fff;
   border: none;
   padding: 0.5rem 1rem;
@@ -59,7 +59,13 @@ button {
 }
 
 button:hover {
-  background: #496563;
+  background: #0b3169;
+}
+
+button[type="submit"]:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
 }
 
 .success-message {
