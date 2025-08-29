@@ -4,6 +4,8 @@ const { findRowByDate } = require("./findRowByDate");
 const getAvailableSlots = async (sheets, date) => {
   const { row } = await findRowByDate(sheets, date);
 
+  if (row <= 0) return { availableSlots: MAX_DAILY_EXPENSES };
+
   const rowResponse = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SHEET_ID,
     range: `Sheet1!A${row}:${TOTAL_COLUMN}${row}`,
