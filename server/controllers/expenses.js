@@ -1,8 +1,8 @@
 const { google } = require("googleapis");
 const oauth2Client = require("../config/oauth");
-
-const MAX_DAILY_EXPENSES = 10;
-const TOTAL_COLUMN = "L";
+const { MAX_DAILY_EXPENSES, TOTAL_COLUMN } = require("../config/sheetConfig");
+const { findRowByDate } = require("../utils/findRowByDate");
+const { getAvailableSlots } = require("../utils/getAvailableSlots");
 
 exports.postExpenses = async (req, res) => {
   if (!oauth2Client.credentials) {
@@ -23,38 +23,14 @@ exports.postExpenses = async (req, res) => {
       });
     }
 
-    const dateResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SHEET_ID,
-      range: "Sheet1!A:A",
-    });
-
-    const dates = dateResponse.data.values || [];
-    let row = -1;
-
-    for (let i = 0; i < dates.length; i++) {
-      if (dates[i][0]?.toLowerCase() === date.toLowerCase()) {
-        row = i + 1;
-        break;
-      }
-    }
+    let { row, dates } = await findRowByDate(sheets, date);
 
     if (row > 0) {
-      const rowResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.SHEET_ID,
-        range: `Sheet1!A${row}:${TOTAL_COLUMN}${row}`,
-      });
+      let { availableSlots, nextExpenseCol } = await getAvailableSlots(
+        sheets,
+        date
+      );
 
-      const existingData = rowResponse.data.values[0] || [];
-
-      let nextExpenseCol = 1;
-      while (
-        nextExpenseCol <= MAX_DAILY_EXPENSES &&
-        existingData[nextExpenseCol]
-      ) {
-        nextExpenseCol++;
-      }
-
-      const availableSlots = MAX_DAILY_EXPENSES - (nextExpenseCol - 1);
       if (expenses.length > availableSlots) {
         return res.status(400).json({
           error: `Only ${availableSlots} slots left for ${date}`,
