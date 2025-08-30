@@ -5,11 +5,14 @@ type DatePickerProps = {
 
 export function DatePicker({ date, onChange }: DatePickerProps) {
   return (
-    <div>
-      <label htmlFor="date">Date: </label>
+    <div className="mb-3">
+      <label htmlFor="date" className="form-label">
+        Date:{" "}
+      </label>
       <input
         id="date"
         type="date"
+        className="form-control"
         value={date}
         onChange={(e) => onChange(e.target.value)}
         required

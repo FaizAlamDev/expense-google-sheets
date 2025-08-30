@@ -10,7 +10,11 @@ export function SubmitButton({
   remainingSlots,
 }: SubmitButtonProps) {
   return (
-    <button type="submit" disabled={isLoading || !remainingSlots}>
+    <button
+      type="submit"
+      className="btn btn-success mt-3"
+      disabled={isLoading || !remainingSlots}
+    >
       {isLoading
         ? "Submitting..."
         : `Submit ${expenseCount} Expense${expenseCount > 1 ? "s" : ""}`}

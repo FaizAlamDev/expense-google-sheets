@@ -17,7 +17,7 @@ export function ExpenseList({
   remainingSlots,
 }: ExpenseListProps) {
   return (
-    <>
+    <div className="mb-3">
       {expenses.map((expense, index) => (
         <ExpenseEntry
           key={index}
@@ -29,20 +29,24 @@ export function ExpenseList({
         />
       ))}
 
-      <div className="add-expense-section">
+      <div className="d-flex justify-content-center mt-3">
         <button
           type="button"
           onClick={onAdd}
-          disabled={expenses.length >= (remainingSlots ?? 0)}
-          className="add-btn"
+          disabled={expenses.length >= (remainingSlots ?? 10)}
+          className="btn btn-outline-primary w-100"
         >
-          {remainingSlots !== undefined
-            ? `Add Additional Expense, ${
-                remainingSlots - expenses.length
-              } slots remaining`
-            : "Add Additional Expense"}
+          {remainingSlots !== undefined ? (
+            expenses.length >= remainingSlots ? (
+              <span className="text-muted">No slots remaining</span>
+            ) : (
+              `Add Expense (${remainingSlots - expenses.length} slots left)`
+            )
+          ) : (
+            "Add Expense"
+          )}
         </button>
       </div>
-    </>
+    </div>
   );
 }

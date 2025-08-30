@@ -16,40 +16,51 @@ export function ExpenseEntry({
   canRemove,
 }: ExpenseEntryProps) {
   return (
-    <div className="expense-entry">
-      <h3>Expense {index + 1}</h3>
+    <div className="card mb-3 shadow-sm">
+      <div className="card-body">
+        <h5 className="mb-3">Expense {index + 1}</h5>
+        <div className="row g-3 align-items-end">
+          <div className="col-12 col-md-5">
+            <label htmlFor={`name-${index}`} className="form-label">
+              Name
+            </label>
+            <input
+              id={`name-${index}`}
+              type="text"
+              className="form-control"
+              value={expense.name}
+              onChange={(e) => onUpdate(index, "name", e.target.value)}
+              required
+            />
+          </div>
 
-      <div>
-        <label htmlFor={`name-${index}`}>Name: </label>
-        <input
-          id={`name-${index}`}
-          type="text"
-          value={expense.name}
-          onChange={(e) => onUpdate(index, "name", e.target.value)}
-          required
-        />
+          <div className="col-12 col-md-4">
+            <label htmlFor={`amount-${index}`} className="form-label">
+              Amount
+            </label>
+            <input
+              id={`amount-${index}`}
+              type="number"
+              className="form-control"
+              value={expense.amount}
+              onChange={(e) => onUpdate(index, "amount", e.target.value)}
+              required
+            />
+          </div>
+
+          {canRemove && (
+            <div className="col-12 col-md-3 d-flex justify-content-md-end">
+              <button
+                type="button"
+                onClick={() => onRemove(index)}
+                className="btn btn-outline-danger w-100 w-md-auto"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-
-      <div>
-        <label htmlFor={`amount-${index}`}>Amount: </label>
-        <input
-          id={`amount-${index}`}
-          type="number"
-          value={expense.amount}
-          onChange={(e) => onUpdate(index, "amount", e.target.value)}
-          required
-        />
-      </div>
-
-      {canRemove && (
-        <button
-          type="button"
-          onClick={() => onRemove(index)}
-          className="remove-btn"
-        >
-          Remove
-        </button>
-      )}
     </div>
   );
 }

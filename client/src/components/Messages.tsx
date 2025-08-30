@@ -7,9 +7,9 @@ export function Messages({ error, success }: MessageProps) {
   if (!error && !success) return null;
 
   return (
-    <div>
-      {success && <div className="success-message">{success}</div>}
-      {error && <div className="error-message">{error}</div>}
+    <div className="mt-3">
+      {success && <div className="alert alert-success">{success}</div>}
+      {error && <div className="alert alert-danger">{error}</div>}
     </div>
   );
 }

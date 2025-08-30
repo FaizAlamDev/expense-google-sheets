@@ -5,7 +5,7 @@ import { DatePicker } from "./components/DatePicker";
 import { ExpenseList } from "./components/ExpenseList";
 import { SubmitButton } from "./components/SubmitButton";
 import { Footer } from "./components/Footer";
-import "./App.css";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
   const [expenses, setExpenses] = useState<Expense[]>([
@@ -103,28 +103,30 @@ function App() {
   }
 
   return (
-    <>
-      <h1>Expense Logging App</h1>
-      <div>
-        <Messages error={error} success={success} />
-        <form onSubmit={logExpense}>
-          <DatePicker date={date} onChange={findAvailableSlots} />
-          <ExpenseList
-            expenses={expenses}
-            onAdd={addExpense}
-            onRemove={removeExpense}
-            onUpdate={updateExpense}
-            remainingSlots={remainingSlots}
-          />
-          <SubmitButton
-            isLoading={isLoading}
-            expenseCount={expenses.length}
-            remainingSlots={remainingSlots}
-          />
-        </form>
+    <div className="d-flex flex-column min-vh-100">
+      <div className="container my-5 flex-grow-1">
+        <h1 className="mb-4 text-center">Expense Logging App</h1>
+        <div>
+          <Messages error={error} success={success} />
+          <form onSubmit={logExpense} className="card p-4 shadow-sm">
+            <DatePicker date={date} onChange={findAvailableSlots} />
+            <ExpenseList
+              expenses={expenses}
+              onAdd={addExpense}
+              onRemove={removeExpense}
+              onUpdate={updateExpense}
+              remainingSlots={remainingSlots}
+            />
+            <SubmitButton
+              isLoading={isLoading}
+              expenseCount={expenses.length}
+              remainingSlots={remainingSlots}
+            />
+          </form>
+        </div>
       </div>
       <Footer />
-    </>
+    </div>
   );
 }
 
