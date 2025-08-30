@@ -31,6 +31,8 @@ export function ExpenseEntry({
               value={expense.name}
               onChange={(e) => onUpdate(index, "name", e.target.value)}
               required
+              pattern=".*[A-Za-z].*"
+              title="Name must contain atleast one letter"
             />
           </div>
 
@@ -45,6 +47,9 @@ export function ExpenseEntry({
               value={expense.amount}
               onChange={(e) => onUpdate(index, "amount", e.target.value)}
               required
+              min={0.01}
+              step="0.01"
+              title="Amount must be greater than 0"
             />
           </div>
 
