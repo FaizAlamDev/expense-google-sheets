@@ -1,16 +1,23 @@
 import { useState, type SyntheticEvent } from "react";
 import type { Expense } from "./types";
+import { Messages } from "./components/Messages";
+import { DatePicker } from "./components/DatePicker";
+import { ExpenseList } from "./components/ExpenseList";
+import { SubmitButton } from "./components/SubmitButton";
+import { Footer } from "./components/Footer";
 import "./App.css";
 
 function App() {
-  const [date, setDate] = useState("");
   const [expenses, setExpenses] = useState<Expense[]>([
     { name: "", amount: "" },
   ]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [date, setDate] = useState("");
+
   const [remainingSlots, setRemainingSlots] = useState<number>();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
   const addExpense = () => {
     if (expenses.length < 10) {
@@ -38,8 +45,6 @@ function App() {
   async function logExpense(e: SyntheticEvent) {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       const response = await fetch("/api/expenses", {
@@ -85,10 +90,10 @@ function App() {
     }
   }
 
-  async function findAvailableSlots(e: React.ChangeEvent<HTMLInputElement>) {
-    setDate(e.target.value);
+  async function findAvailableSlots(value: string) {
+    setDate(value);
     const response = await fetch(
-      `api/getAvailableSlots?date=${encodeURIComponent(e.target.value)}`
+      `api/getAvailableSlots?date=${encodeURIComponent(value)}`
     );
     const data = await response.json();
     if (!response.ok) {
@@ -101,82 +106,24 @@ function App() {
     <>
       <h1>Expense Logging App</h1>
       <div>
-        {success && <div className="success-message">{success}</div>}
-        {error && <div className="error-message">{error}</div>}
-
+        <Messages error={error} success={success} />
         <form onSubmit={logExpense}>
-          <div>
-            <label htmlFor="date">Date: </label>
-            <input
-              id="date"
-              type="date"
-              value={date}
-              onChange={findAvailableSlots}
-              required
-            />
-          </div>
-
-          {expenses.map((expense, index) => (
-            <div key={index} className="expense-entry">
-              <h3>Expense {index + 1}</h3>
-              <div>
-                <label htmlFor={`name-${index}`}>Name: </label>
-                <input
-                  id={`name-${index}`}
-                  type="text"
-                  value={expense.name}
-                  onChange={(e) => updateExpense(index, "name", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor={`amount-${index}`}>Amount: </label>
-                <input
-                  id={`amount-${index}`}
-                  type="number"
-                  value={expense.amount}
-                  onChange={(e) =>
-                    updateExpense(index, "amount", e.target.value)
-                  }
-                  required
-                />
-              </div>
-              {expenses.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeExpense(index)}
-                  className="remove-btn"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-
-          <div className="add-expense-section">
-            <button
-              type="button"
-              onClick={addExpense}
-              disabled={expenses.length >= (remainingSlots ?? 0)}
-              className="add-btn"
-            >
-              {remainingSlots !== undefined
-                ? `Add Additional Expense, ${remainingSlots} slots remaining`
-                : "Add Additional Expense"}
-            </button>
-          </div>
-          <button type="submit" disabled={isLoading || !remainingSlots}>
-            {isLoading
-              ? "Submitting..."
-              : `Submit ${expenses.length} Expense${
-                  expenses.length > 1 ? "s" : ""
-                }`}
-          </button>
+          <DatePicker date={date} onChange={findAvailableSlots} />
+          <ExpenseList
+            expenses={expenses}
+            onAdd={addExpense}
+            onRemove={removeExpense}
+            onUpdate={updateExpense}
+            remainingSlots={remainingSlots}
+          />
+          <SubmitButton
+            isLoading={isLoading}
+            expenseCount={expenses.length}
+            remainingSlots={remainingSlots}
+          />
         </form>
       </div>
-      <footer>
-        <p>Made by Faiz Alam</p>
-      </footer>
+      <Footer />
     </>
   );
 }
