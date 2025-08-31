@@ -19,7 +19,7 @@ exports.availableSlots = async (req, res) => {
 
     return res.json({ success: true, availableSlots });
   } catch (err) {
-    console.error("Error fetching available slots:", error);
+    console.error("Error fetching available slots:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch available slots",

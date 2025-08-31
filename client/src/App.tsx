@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
 import type { Expense } from "./types";
 import { Messages } from "./components/Messages";
 import { DatePicker } from "./components/DatePicker";
@@ -18,6 +18,21 @@ function App() {
 
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const response = await fetch("/api/checkAuth");
+        const data = await response.json();
+        if (!data.authenticated) {
+          window.location.href = "http://localhost:5000/auth";
+        }
+      } catch (err) {
+        console.error("Auth check failed:", err);
+      }
+    }
+    checkAuth();
+  }, []);
 
   const addExpense = () => {
     if (expenses.length < 10) {

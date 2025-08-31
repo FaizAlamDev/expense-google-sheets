@@ -9,7 +9,7 @@ exports.authCallback = async (req, res) => {
   try {
     const { code } = req.query;
     await setTokens(code);
-    res.send("Authentication successful! You can now post data");
+    res.redirect("http://localhost:5173");
   } catch (err) {
     res.status(500).send(`Error: ${err.message}`);
   }
