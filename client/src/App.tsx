@@ -19,19 +19,35 @@ function App() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   useEffect(() => {
-    async function checkAuth() {
+    let cancelled = false;
+    let redirected = false;
+
+    (async () => {
       try {
         const response = await fetch("/api/checkAuth");
         const data = await response.json();
         if (!data.authenticated) {
-          window.location.href = "http://localhost:5000/auth";
+          redirected = true;
+          window.location.replace("http://localhost:5000/auth");
+          return;
+        }
+
+        if (!cancelled && !redirected) {
+          setCheckingAuth(false);
         }
       } catch (err) {
         console.error("Auth check failed:", err);
+        redirected = true;
+        window.location.replace("http://localhost:5000/auth");
       }
-    }
-    checkAuth();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const addExpense = () => {
@@ -115,6 +131,16 @@ function App() {
       throw new Error(data.message || "Failed to fetch available slots");
     }
     setRemainingSlots(data.availableSlots);
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Checking authentication...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
