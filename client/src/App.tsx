@@ -12,6 +12,7 @@ function App() {
     { name: "", amount: "" },
   ]);
   const [date, setDate] = useState("");
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [remainingSlots, setRemainingSlots] = useState<number>();
   const [isLoading, setIsLoading] = useState(false);
@@ -122,15 +123,24 @@ function App() {
   }
 
   async function findAvailableSlots(value: string) {
-    setDate(value);
-    const response = await fetch(
-      `api/getAvailableSlots?date=${encodeURIComponent(value)}`
-    );
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to fetch available slots");
+    try {
+      setDate(value);
+      setSlotsLoading(true);
+
+      const response = await fetch(
+        `api/getAvailableSlots?date=${encodeURIComponent(value)}`
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to fetch available slots");
+      }
+      setRemainingSlots(data.availableSlots);
+    } catch (err) {
+      console.error("Failed to fetch slots", err);
+      setRemainingSlots(undefined);
+    } finally {
+      setSlotsLoading(false);
     }
-    setRemainingSlots(data.availableSlots);
   }
 
   if (checkingAuth) {
@@ -150,7 +160,11 @@ function App() {
         <div>
           <Messages error={error} success={success} />
           <form onSubmit={logExpense} className="card p-4 shadow-sm">
-            <DatePicker date={date} onChange={findAvailableSlots} />
+            <DatePicker
+              date={date}
+              onChange={findAvailableSlots}
+              slotsLoading={slotsLoading}
+            />
             <ExpenseList
               expenses={expenses}
               onAdd={addExpense}
