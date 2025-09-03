@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const oauth2Client = require("../config/oauth");
 
-const TOKEN_PATH = path.resolve(__dirname, "../tokens.json");
+const TOKEN_PATH = path.resolve("/data/tokens.json");
 
 const getAuthUrl = () => {
   return oauth2Client.generateAuthUrl({
