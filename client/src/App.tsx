@@ -26,13 +26,16 @@ function App() {
     let cancelled = false;
     let redirected = false;
 
-    (async () => {
+    async function checkAuth() {
       try {
-        const response = await fetch("/api/checkAuth");
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/checkAuth`
+        );
         const data = await response.json();
+
         if (!data.authenticated) {
           redirected = true;
-          window.location.replace("http://localhost:5000/auth");
+          window.location.replace(`${import.meta.env.VITE_API_URL}/auth`);
           return;
         }
 
@@ -42,9 +45,11 @@ function App() {
       } catch (err) {
         console.error("Auth check failed:", err);
         redirected = true;
-        window.location.replace("http://localhost:5000/auth");
+        window.location.replace(`${import.meta.env.VITE_API_URL}/auth`);
       }
-    })();
+    }
+
+    checkAuth();
 
     return () => {
       cancelled = true;

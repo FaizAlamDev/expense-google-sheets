@@ -9,7 +9,8 @@ exports.authCallback = async (req, res) => {
   try {
     const { code } = req.query;
     await setTokens(code);
-    res.redirect("http://localhost:5173");
+    const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+    res.redirect(FRONTEND_URL);
   } catch (err) {
     res.status(500).send(`Error: ${err.message}`);
   }
