@@ -2,14 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const oauth2Client = require("../config/oauth");
 
-const TOKEN_PATH = path.resolve("/data/tokens.json");
+const TOKEN_PATH = fs.existsSync("/data")
+  ? "/data/tokens.json"
+  : path.resolve(__dirname, "../tokens.json");
 
-const getAuthUrl = (platform) => {
+const getAuthUrl = (state) => {
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/spreadsheets"],
     prompt: "consent",
-    state: platform,
+    state: state,
   });
 };
 

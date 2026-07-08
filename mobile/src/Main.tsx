@@ -43,10 +43,10 @@ export default function App() {
             scheme: "expenseSheetsApp",
           });
 
-          const authUrl = `${API_URL}/auth?platform=mobile`;
+          const authUrl = `${API_URL}/auth?platform=mobile&redirect_uri=${encodeURIComponent(redirectUri)}`;
           const result = await WebBrowser.openAuthSessionAsync(
             authUrl,
-            redirectUri
+            redirectUri,
           );
 
           if (result.type === "success" && result.url) {
@@ -93,10 +93,10 @@ export default function App() {
   const updateExpense = (
     index: number,
     field: keyof Expense,
-    value: string
+    value: string,
   ) => {
     const updatedExpenses = expenses.map((expense, i) =>
-      i === index ? { ...expense, [field]: value } : expense
+      i === index ? { ...expense, [field]: value } : expense,
     );
     setExpenses(updatedExpenses);
   };
@@ -142,7 +142,7 @@ export default function App() {
     } catch (err) {
       console.error(`Error submitting expense: ${err}`);
       setError(
-        `Failed to log expense: ${err instanceof Error ? err.message : "Unknown error"}`
+        `Failed to log expense: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
       setTimeout(() => setError(""), 5000);
       Alert.alert("Error", "Failed to log expense");
@@ -157,7 +157,7 @@ export default function App() {
       setSlotsLoading(true);
 
       const response = await fetch(
-        `${API_URL}/api/getAvailableSlots?date=${encodeURIComponent(value)}`
+        `${API_URL}/api/getAvailableSlots?date=${encodeURIComponent(value)}`,
       );
       const data = await response.json();
       if (!response.ok)
