@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const oauth2Client = require("../config/oauth");
+const logger = require("./logger");
 
 const TOKEN_PATH = fs.existsSync("/data")
   ? "/data/tokens.json"
@@ -34,7 +35,7 @@ const initializeAuth = async () => {
     if (fs.existsSync(TOKEN_PATH)) {
       const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH));
       oauth2Client.setCredentials(tokens);
-      console.log("Loaded existing tokens");
+      logger.info("Loaded existing OAuth tokens");
     }
 
     oauth2Client.on("tokens", (newTokens) => {
@@ -50,10 +51,10 @@ const initializeAuth = async () => {
       };
 
       fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens));
-      console.log("Tokens updated");
+      logger.info("OAuth tokens updated");
     });
   } catch (err) {
-    console.error("Auth error:", err);
+    logger.error("OAuth initialization error:", err);
     throw err;
   }
 };
@@ -61,3 +62,4 @@ const initializeAuth = async () => {
 exports.getAuthUrl = getAuthUrl;
 exports.setTokens = setTokens;
 exports.initializeAuth = initializeAuth;
+

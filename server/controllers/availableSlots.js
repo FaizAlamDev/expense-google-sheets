@@ -1,6 +1,5 @@
-const { google } = require("googleapis");
-const { getAvailableSlots } = require("../utils/getAvailableSlots");
-const oauth2Client = require("../config/oauth");
+const db = require("../utils/db");
+const logger = require("../utils/logger");
 
 exports.availableSlots = async (req, res) => {
   try {
@@ -13,16 +12,15 @@ exports.availableSlots = async (req, res) => {
       });
     }
 
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
-
-    const { availableSlots } = await getAvailableSlots(sheets, date);
+    const availableSlots = await db.getAvailableSlots(date);
 
     return res.json({ success: true, availableSlots });
   } catch (err) {
-    console.error("Error fetching available slots:", err);
+    logger.error("Error fetching available slots:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch available slots",
     });
   }
 };
+
