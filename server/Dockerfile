@@ -21,8 +21,11 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
 # Install node modules
+# Compile native modules (e.g. sqlite3) from source so they link against the
+# glibc of this image; prebuilt binaries may require a newer glibc than the
+# runtime image provides.
 COPY package-lock.json package.json ./
-RUN npm ci
+RUN npm_config_build_from_source=true npm ci
 
 # Copy application code
 COPY . .
