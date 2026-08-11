@@ -1,12 +1,13 @@
 # Expense Sheets
 
-A full-stack daily expense tracker with a web app, a mobile app (Expo/React Native), and a Node/Express API. The backend persists every expense to a local **SQLite** database, mirrors it to **Google Sheets** as a best-effort sync, and protects the data with automated **AWS S3** snapshots.
+A full-stack daily expense tracker with a web app, a mobile app (Expo/React Native), and a Node/Express API. The backend persists every expense to a local **SQLite** database (the single source of truth), mirrors new writes to **Google Sheets** as a best-effort sync, and protects the data with automated **AWS S3** snapshots.
 
 ## What it does
 
 - Log up to **10 expenses per day**, each with a name and amount.
-- Track which days still have free slots (`GET /api/getAvailableSlots`).
+- Track which days still have free slots (`GET /api/getAvailableSlots`) and enforce the limit server-side.
 - Write expenses transactionally to SQLite, then fan out to Google Sheets in the background so users never wait on a third-party API.
+- Browse the full expense history: paged day list, search by date, and per-expense **edit**, **delete**, and **add** — all backed by SQLite.
 - Back up the database automatically every 12 hours to S3 (plus one snapshot 10s after server start).
 
 ## Architecture
@@ -21,8 +22,9 @@ A full-stack daily expense tracker with a web app, a mobile app (Expo/React Nati
 ┌─────────────────────────────────────────┐
 │  Express API  (server/ )                │
 │  - Google OAuth 2.0 session             │
-│  - Expense writes (SQLite-first)        │
-│  - Async Google Sheets sync             │
+│  - Expense CRUD: log, history, edit,    │
+│    delete (SQLite-first)                │
+│  - Async Google Sheets sync (new writes)│
 │  - S3 backup scheduler + endpoints      │
 └──────┬──────────────┬──────────┬────────┘
        │              │          │
@@ -34,15 +36,28 @@ A full-stack daily expense tracker with a web app, a mobile app (Expo/React Nati
 
 ### SQLite is the source of truth
 
-The database flow in `server/controllers/expenses.js`:
+The write flow for a new expense in `server/controllers/expenses.js`:
 
 1. Validate the payload (max 10 expenses per day).
 2. Compute available slots from **SQLite**, not Google Sheets.
 3. Insert into SQLite inside a transaction (`server/utils/db.js`).
-4. Reply `{ success: true }` to the client immediately.
+4. Reply `{ success: true, expenses: [...] }` to the client immediately, including the created records (so the UI can show the real id).
 5. Fire `syncToGoogleSheets()` as an async side effect. If the Sheets sync fails, it is logged and the user's write is unaffected; if SQLite fails, the write is rejected.
 
-Google Sheets is a **mirror**: `Sheet1` stores the date in column A, each expense in columns B–K formatted as `"name: amount"`, and a regex-based formula in column L computes the daily total. Sheets integration lives in `server/utils/sheetsSync.js`.
+Every write/update/delete that succeeds against SQLite is logged via `server/utils/logger.js` (e.g. `Inserted 1 expenses into SQLite for date: …`, `Updated expense 515 in SQLite (…)`, `Deleted expense 515 from SQLite`).
+
+Google Sheets is a **mirror**: `Sheet1` stores the date in column A, each expense in columns B–K formatted as `"name: amount"`, and a regex-based formula in column L computes the daily total. Sheets integration lives in `server/utils/sheetsSync.js`. The mirror is only updated when *new* expenses are logged — edits and deletes are SQLite-only (see Known caveats).
+
+### Expense history & management
+
+Both clients ship a History view that reads and manages past expenses straight from SQLite. The web and mobile API layers call it directly (no mock layer).
+
+- `GET /api/expenses/dates?limit=&offset=` — distinct dates, newest first. Returns `{ dates: string[], total }` (total is the page count for the client's pagination).
+- `GET /api/expenses?date=YYYY-MM-DD` — one day's expenses. Returns `{ date, expenses[], total }`.
+- `PUT /api/expenses/:id` — body `{ name, amount }`; validates id/name/amount and returns the updated record (404 if the id doesn't exist).
+- `DELETE /api/expenses/:id` — removes the row; returns `{ success: true }` (404 if it was already gone).
+
+The History UI (`client/src/components/HistoryPage.tsx` / the matching mobile screen) loads day-by-day groups 10 per page with pagination, can search an exact date, and supports inline add/edit/delete on a day's card — each mutation re-fetches so the list stays consistent. The 10-slot-per-day invariant is still enforced server-side on `POST /api/expenses`.
 
 ### Authentication
 
@@ -128,11 +143,13 @@ To use the app, authenticate the server once at `http://localhost:5000/auth`, th
 
 ## Verification
 
-There are no automated tests.
+There are no automated tests (`server`'s `npm test` is a stub); verification is static checks plus a manual smoke test against the running server.
 
-- Server: `cd server && node --check server.js`
+- Server syntax: `cd server && node --check server.js` (repeat for `routes.js`, `controllers/*.js`, `utils/*.js`)
 - Client typecheck + build: `cd client && npm run build` (runs `tsc -b && vite build`)
 - Client lint: `cd client && npm run lint`
+- Mobile typecheck + lint: `cd mobile && npx tsc --noEmit && npx eslint .`
+- Manual smoke: with the server running, hit `/api/expenses/dates`, `/api/expenses?date=…`, and create/update/delete an expense via `curl`.
 
 ## Production deployment (Fly.io)
 
@@ -163,5 +180,6 @@ The OAuth deep-link scheme must stay `expenseSheetsApp` (defined in `mobile/app.
 
 ## Known caveats
 
+- **Google Sheets mirror can drift**: it is only kept up to date for *new* writes (`POST /api/expenses`). Editing or deleting an expense updates/deletes it in SQLite only — the corresponding `Sheet1` row is left untouched. SQLite is the source of truth, so the UI always shows the correct state.
 - `tokens.json` holds a refresh token — keep it inside the persistent volume and never commit it.
 - `server/credentials.json` (if present) holds an OAuth client secret and is not yet covered by `server/.gitignore` — never commit it.
