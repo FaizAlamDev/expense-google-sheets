@@ -5,9 +5,11 @@ import { DatePicker } from "./components/DatePicker";
 import { ExpenseList } from "./components/ExpenseList";
 import { SubmitButton } from "./components/SubmitButton";
 import { Footer } from "./components/Footer";
+import { HistoryPage } from "./components/HistoryPage";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
+  const [activeTab, setActiveTab] = useState<"log" | "history">("log");
   const [expenses, setExpenses] = useState<Expense[]>([
     { name: "", amount: "" },
   ]);
@@ -162,28 +164,54 @@ function App() {
     <div className="d-flex flex-column min-vh-100">
       <div className="container my-5 flex-grow-1">
         <h1 className="mb-4 text-center">Expense Logging App</h1>
-        <div>
-          <Messages error={error} success={success} />
-          <form onSubmit={logExpense} className="card p-4 shadow-sm">
-            <DatePicker
-              date={date}
-              onChange={findAvailableSlots}
-              slotsLoading={slotsLoading}
-            />
-            <ExpenseList
-              expenses={expenses}
-              onAdd={addExpense}
-              onRemove={removeExpense}
-              onUpdate={updateExpense}
-              remainingSlots={remainingSlots}
-            />
-            <SubmitButton
-              isLoading={isLoading}
-              expenseCount={expenses.length}
-              remainingSlots={remainingSlots}
-            />
-          </form>
-        </div>
+
+        <ul className="nav nav-pills justify-content-center mb-4">
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link ${activeTab === "log" ? "active" : ""}`}
+              onClick={() => setActiveTab("log")}
+            >
+              Log Expense
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link ${activeTab === "history" ? "active" : ""}`}
+              onClick={() => setActiveTab("history")}
+            >
+              History
+            </button>
+          </li>
+        </ul>
+
+        {activeTab === "history" ? (
+          <HistoryPage />
+        ) : (
+          <div>
+            <Messages error={error} success={success} />
+            <form onSubmit={logExpense} className="card p-4 shadow-sm">
+              <DatePicker
+                date={date}
+                onChange={findAvailableSlots}
+                slotsLoading={slotsLoading}
+              />
+              <ExpenseList
+                expenses={expenses}
+                onAdd={addExpense}
+                onRemove={removeExpense}
+                onUpdate={updateExpense}
+                remainingSlots={remainingSlots}
+              />
+              <SubmitButton
+                isLoading={isLoading}
+                expenseCount={expenses.length}
+                remainingSlots={remainingSlots}
+              />
+            </form>
+          </div>
+        )}
       </div>
       <Footer />
     </div>
