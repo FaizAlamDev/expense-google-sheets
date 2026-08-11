@@ -19,7 +19,7 @@ function pageItems(current: number, count: number): (number | "…")[] {
     .sort((a, b) => a - b);
 
   const result: (number | "…")[] = [];
-  let previous = -2;
+  let previous = -1;
   for (const n of sorted) {
     if (n - previous > 1) result.push("…");
     result.push(n);

@@ -100,11 +100,15 @@ async function updateExpense(id, name, amount) {
     [name, amount, id]
   );
   if (result.changes === 0) return null;
+  logger.info(`Updated expense ${id} in SQLite (name: ${name}, amount: ${amount})`);
   return getExpenseById(id);
 }
 
 async function deleteExpense(id) {
   const result = await db.run("DELETE FROM expenses WHERE id = ?", [id]);
+  if (result.changes > 0) {
+    logger.info(`Deleted expense ${id} from SQLite`);
+  }
   return result.changes;
 }
 
