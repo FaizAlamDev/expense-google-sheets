@@ -52,17 +52,60 @@ async function insertExpenses(date, expenses) {
     const stmt = await db.prepare(
       "INSERT INTO expenses (date, name, amount) VALUES (?, ?, ?)"
     );
+    const inserted = [];
     for (const exp of expenses) {
-      await stmt.run(date, exp.name, parseFloat(exp.amount));
+      const amount = parseFloat(exp.amount);
+      const result = await stmt.run(date, exp.name, amount);
+      inserted.push({ id: result.lastID, date, name: exp.name, amount });
     }
     await stmt.finalize();
     await db.run("COMMIT");
     logger.info(`Inserted ${expenses.length} expenses into SQLite for date: ${date}`);
+    return inserted;
   } catch (err) {
     await db.run("ROLLBACK");
     logger.error(`SQLite insert transaction failed: ${err.message}`);
     throw err;
   }
+}
+
+async function getDatesPage(limit, offset) {
+  const rows = await db.all(
+    "SELECT date FROM expenses GROUP BY date ORDER BY date DESC LIMIT ? OFFSET ?",
+    [limit, offset]
+  );
+  const rowsCount = await db.get(
+    "SELECT COUNT(DISTINCT date) AS total FROM expenses"
+  );
+  return { dates: rows.map((r) => r.date), total: rowsCount.total };
+}
+
+async function getExpensesByDate(date) {
+  return await db.all(
+    "SELECT id, date, name, amount FROM expenses WHERE date = ? ORDER BY id ASC",
+    [date]
+  );
+}
+
+async function getExpenseById(id) {
+  return await db.get(
+    "SELECT id, date, name, amount FROM expenses WHERE id = ?",
+    [id]
+  );
+}
+
+async function updateExpense(id, name, amount) {
+  const result = await db.run(
+    "UPDATE expenses SET name = ?, amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [name, amount, id]
+  );
+  if (result.changes === 0) return null;
+  return getExpenseById(id);
+}
+
+async function deleteExpense(id) {
+  const result = await db.run("DELETE FROM expenses WHERE id = ?", [id]);
+  return result.changes;
 }
 
 async function getAllExpenses() {
@@ -78,6 +121,11 @@ module.exports = {
   getAvailableSlots,
   insertExpenses,
   getAllExpenses,
+  getDatesPage,
+  getExpensesByDate,
+  getExpenseById,
+  updateExpense,
+  deleteExpense,
   getDbInstance,
   DB_PATH,
 };
