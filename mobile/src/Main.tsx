@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, Alert, Pressable } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as Linking from "expo-linking";
@@ -11,12 +11,14 @@ import { DatePicker } from "./components/DatePicker";
 import { ExpenseList } from "./components/ExpenseList";
 import { SubmitButton } from "./components/SubmitButton";
 import { Footer } from "./components/Footer";
+import { HistoryScreen } from "./components/HistoryScreen";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const API_URL = Constants.expoConfig?.extra?.apiUrl;
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<"log" | "history">("log");
   const [expenses, setExpenses] = useState<Expense[]>([
     { name: "", amount: "" },
   ]);
@@ -188,28 +190,73 @@ export default function App() {
           Expense Logging App
         </Text>
 
-        <Messages error={error} success={success} />
-
-        <View className="bg-white rounded-2xl p-4 shadow">
-          <DatePicker
-            date={date}
-            onChange={findAvailableSlots}
-            slotsLoading={slotsLoading}
-          />
-          <ExpenseList
-            expenses={expenses}
-            onAdd={addExpense}
-            onRemove={removeExpense}
-            onUpdate={updateExpense}
-            remainingSlots={remainingSlots}
-          />
-          <SubmitButton
-            isLoading={isLoading}
-            expenseCount={expenses.length}
-            remainingSlots={remainingSlots}
-            onPress={logExpense}
-          />
+        <View className="flex-row justify-center mb-4">
+          <Pressable
+            className={`px-4 py-2 rounded-l-md border ${
+              activeTab === "log"
+                ? "bg-blue-600 border-blue-600"
+                : "bg-white border-gray-300"
+            }`}
+            onPress={() => setActiveTab("log")}
+          >
+            <Text
+              className={
+                activeTab === "log"
+                  ? "text-white font-medium"
+                  : "text-gray-700"
+              }
+            >
+              Log Expense
+            </Text>
+          </Pressable>
+          <Pressable
+            className={`px-4 py-2 rounded-r-md border ${
+              activeTab === "history"
+                ? "bg-blue-600 border-blue-600"
+                : "bg-white border-gray-300"
+            }`}
+            onPress={() => setActiveTab("history")}
+          >
+            <Text
+              className={
+                activeTab === "history"
+                  ? "text-white font-medium"
+                  : "text-gray-700"
+              }
+            >
+              History
+            </Text>
+          </Pressable>
         </View>
+
+        {activeTab === "history" ? (
+          <HistoryScreen />
+        ) : (
+          <>
+            <Messages error={error} success={success} />
+
+            <View className="bg-white rounded-2xl p-4 shadow">
+              <DatePicker
+                date={date}
+                onChange={findAvailableSlots}
+                slotsLoading={slotsLoading}
+              />
+              <ExpenseList
+                expenses={expenses}
+                onAdd={addExpense}
+                onRemove={removeExpense}
+                onUpdate={updateExpense}
+                remainingSlots={remainingSlots}
+              />
+              <SubmitButton
+                isLoading={isLoading}
+                expenseCount={expenses.length}
+                remainingSlots={remainingSlots}
+                onPress={logExpense}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <Footer />
