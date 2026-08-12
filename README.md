@@ -46,7 +46,7 @@ The write flow for a new expense in `server/controllers/expenses.js`:
 
 Every write/update/delete that succeeds against SQLite is logged via `server/utils/logger.js` (e.g. `Inserted 1 expenses into SQLite for date: …`, `Updated expense 515 in SQLite (…)`, `Deleted expense 515 from SQLite`).
 
-Google Sheets is a **mirror**: `Sheet1` stores the date in column A, each expense in columns B–K formatted as `"name: amount"`, and a regex-based formula in column L computes the daily total. Sheets integration lives in `server/utils/sheetsSync.js`. The mirror is only updated when *new* expenses are logged — edits and deletes are SQLite-only (see Known caveats).
+Google Sheets is a **mirror**: `Sheet1` stores the date in column A, each expense in columns B–K formatted as `"name: amount"`, and a regex-based formula in column L computes the daily total. Sheets integration lives in `server/utils/sheetsSync.js`. New writes append to the date's row; **edits and deletes rewrite the whole row** (columns B–K, preserving the date and the L formula) so the mirror follows SQLite. All Sheets jobs for a date are **serialized per-date** in an in-process queue (fails never block the user or later jobs, but see Known caveats).
 
 ### Expense history & management
 
@@ -57,7 +57,7 @@ Both clients ship a History view that reads and manages past expenses straight f
 - `PUT /api/expenses/:id` — body `{ name, amount }`; validates id/name/amount and returns the updated record (404 if the id doesn't exist).
 - `DELETE /api/expenses/:id` — removes the row; returns `{ success: true }` (404 if it was already gone).
 
-The History UI (`client/src/components/HistoryPage.tsx` / the matching mobile screen) loads day-by-day groups 10 per page with pagination, can search an exact date, and supports inline add/edit/delete on a day's card — each mutation re-fetches so the list stays consistent. The 10-slot-per-day invariant is still enforced server-side on `POST /api/expenses`.
+The History UI (`client/src/components/HistoryPage.tsx` / the matching mobile screen) loads day-by-day groups 10 per page with pagination, can search an exact date, and supports inline add/edit/delete on a day's card — each mutation re-fetches so the list stays consistent. The 10-slot-per-day invariant is still enforced server-side on `POST /api/expenses`. Edits and deletes also trigger a **best-effort background rewrite** of the affected date's row in Google Sheets (`syncDateGroupToGoogleSheets`), serialized per date.
 
 ### Authentication
 
@@ -180,6 +180,6 @@ The OAuth deep-link scheme must stay `expenseSheetsApp` (defined in `mobile/app.
 
 ## Known caveats
 
-- **Google Sheets mirror can drift**: it is only kept up to date for *new* writes (`POST /api/expenses`). Editing or deleting an expense updates/deletes it in SQLite only — the corresponding `Sheet1` row is left untouched. SQLite is the source of truth, so the UI always shows the correct state.
+- **Google Sheets mirror is eventually consistent, not transactional.** Edits and deletes trigger a background rewrite of the date's row (serialized per date), but each step is a separate best-effort Google API call: a failure is logged and SQLite — the source of truth — already has the change, so the sheet can temporarily (or, on repeated failure, persistently) drift. Sheet rewrites also overwrite any manual edits made directly in the spreadsheet.
 - `tokens.json` holds a refresh token — keep it inside the persistent volume and never commit it.
 - `server/credentials.json` (if present) holds an OAuth client secret and is not yet covered by `server/.gitignore` — never commit it.

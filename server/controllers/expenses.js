@@ -1,5 +1,5 @@
 const db = require("../utils/db");
-const { syncToGoogleSheets } = require("../utils/sheetsSync");
+const { syncToGoogleSheets, syncDateGroupToGoogleSheets } = require("../utils/sheetsSync");
 const logger = require("../utils/logger");
 
 const MAX_DAILY_EXPENSES = 10;
@@ -95,6 +95,10 @@ exports.updateExpense = async (req, res) => {
       return res.status(404).json({ error: "Expense not found" });
     }
     res.json(record);
+
+    syncDateGroupToGoogleSheets(record.date).catch((syncErr) => {
+      logger.error(`Unhandled exception in background Google Sheets sync: ${syncErr.message}`);
+    });
   } catch (err) {
     logger.error("Error updating expense:", err);
     res.status(500).json({ error: "Failed to update expense" });
@@ -108,11 +112,20 @@ exports.deleteExpense = async (req, res) => {
   }
 
   try {
+    const record = await db.getExpenseById(id);
+    if (!record) {
+      return res.status(404).json({ error: "Expense not found" });
+    }
+
     const changes = await db.deleteExpense(id);
     if (changes === 0) {
       return res.status(404).json({ error: "Expense not found" });
     }
     res.json({ success: true });
+
+    syncDateGroupToGoogleSheets(record.date).catch((syncErr) => {
+      logger.error(`Unhandled exception in background Google Sheets sync: ${syncErr.message}`);
+    });
   } catch (err) {
     logger.error("Error deleting expense:", err);
     res.status(500).json({ error: "Failed to delete expense" });
