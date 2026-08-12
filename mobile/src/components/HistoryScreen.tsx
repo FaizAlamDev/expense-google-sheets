@@ -161,6 +161,9 @@ export function HistoryScreen() {
         />
       ) : pageEntries ? (
         <>
+          {pageEntries.groups.length > 0 && (
+            <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
+          )}
           {pageEntries.groups.map((group) => (
             <DateGroupCard
               key={group.date}
@@ -170,7 +173,6 @@ export function HistoryScreen() {
               onAdd={handleAdd}
             />
           ))}
-          <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
         </>
       ) : null}
     </View>

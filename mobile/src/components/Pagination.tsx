@@ -38,20 +38,20 @@ export function Pagination({
   if (pageCount <= 1) return null;
 
   return (
-    <View className="items-center mt-4 mb-2">
+    <View className="items-center mt-3 mb-2">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="flex-row items-center"
       >
         <Pressable
-          className={`border border-gray-300 rounded-md px-3 py-2 mr-2 ${
+          className={`border border-blue-200 rounded-full px-3 py-1.5 mr-2 ${
             page === 0 ? "opacity-40" : ""
           }`}
           disabled={page === 0}
           onPress={() => onPageChange(page - 1)}
         >
-          <Text className="text-gray-700">Previous</Text>
+          <Text className="text-blue-700">‹ Prev</Text>
         </Pressable>
 
         {pageItems(page, pageCount).map((item, index) =>
@@ -62,7 +62,7 @@ export function Pagination({
           ) : (
             <Pressable
               key={item}
-              className={`rounded-md px-3 py-2 mx-1 ${
+              className={`rounded-full px-3 py-1.5 mx-1 ${
                 item === page ? "bg-blue-600" : "bg-gray-100"
               }`}
               onPress={() => onPageChange(item)}
@@ -79,13 +79,13 @@ export function Pagination({
         )}
 
         <Pressable
-          className={`border border-gray-300 rounded-md px-3 py-2 ml-2 ${
+          className={`border border-blue-200 rounded-full px-3 py-1.5 ml-2 ${
             page === pageCount - 1 ? "opacity-40" : ""
           }`}
           disabled={page === pageCount - 1}
           onPress={() => onPageChange(page + 1)}
         >
-          <Text className="text-gray-700">Next</Text>
+          <Text className="text-blue-700">Next ›</Text>
         </Pressable>
       </ScrollView>
     </View>

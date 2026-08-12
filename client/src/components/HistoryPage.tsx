@@ -155,6 +155,13 @@ export function HistoryPage() {
         showList &&
         pageEntries && (
           <>
+            {pageEntries.groups.length > 0 && (
+              <Pagination
+                page={page}
+                pageCount={pageCount}
+                onPageChange={setPage}
+              />
+            )}
             {pageEntries.groups.map((group) => (
               <DateGroupCard
                 key={group.date}
@@ -164,11 +171,6 @@ export function HistoryPage() {
                 onAdd={handleAdd}
               />
             ))}
-            <Pagination
-              page={page}
-              pageCount={pageCount}
-              onPageChange={setPage}
-            />
           </>
         )
       )}

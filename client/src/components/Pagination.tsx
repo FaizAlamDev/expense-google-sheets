@@ -36,51 +36,44 @@ export function Pagination({
   if (pageCount <= 1) return null;
 
   return (
-    <nav aria-label="Expense pages">
-      <ul className="pagination justify-content-center">
-        <li className={`page-item ${page === 0 ? "disabled" : ""}`}>
-          <button
-            type="button"
-            className="page-link"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page === 0}
-          >
-            Previous
-          </button>
-        </li>
+    <nav aria-label="Expense pages" className="py-3">
+      <div className="d-flex flex-wrap align-items-center justify-content-center gap-2">
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-primary rounded-pill px-3"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 0}
+        >
+          ‹ Prev
+        </button>
         {pageItems(page, pageCount).map((item, index) =>
           item === "…" ? (
-            <li key={`gap-${index}`} className="page-item disabled">
-              <span className="page-link">…</span>
-            </li>
+            <span key={`gap-${index}`} className="text-secondary px-1">
+              …
+            </span>
           ) : (
-            <li
+            <button
               key={item}
-              className={`page-item ${item === page ? "active" : ""}`}
+              type="button"
+              className={`btn btn-sm rounded-pill px-3 ${
+                item === page ? "btn-primary" : "btn-outline-primary"
+              }`}
+              onClick={() => onPageChange(item)}
+              aria-current={item === page ? "page" : undefined}
             >
-              <button
-                type="button"
-                className="page-link"
-                onClick={() => onPageChange(item)}
-              >
-                {item + 1}
-              </button>
-            </li>
+              {item + 1}
+            </button>
           )
         )}
-        <li
-          className={`page-item ${page === pageCount - 1 ? "disabled" : ""}`}
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-primary rounded-pill px-3"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === pageCount - 1}
         >
-          <button
-            type="button"
-            className="page-link"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page === pageCount - 1}
-          >
-            Next
-          </button>
-        </li>
-      </ul>
+          Next ›
+        </button>
+      </div>
     </nav>
   );
 }
