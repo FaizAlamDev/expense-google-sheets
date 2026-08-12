@@ -71,13 +71,20 @@ async function insertExpenses(date, expenses) {
 
 async function getDatesPage(limit, offset) {
   const rows = await db.all(
-    "SELECT date FROM expenses GROUP BY date ORDER BY date DESC LIMIT ? OFFSET ?",
+    `SELECT date, COUNT(*) AS count, SUM(amount) AS total
+     FROM expenses
+     GROUP BY date
+     ORDER BY date DESC
+     LIMIT ? OFFSET ?`,
     [limit, offset]
   );
   const rowsCount = await db.get(
     "SELECT COUNT(DISTINCT date) AS total FROM expenses"
   );
-  return { dates: rows.map((r) => r.date), total: rowsCount.total };
+  return {
+    total: rowsCount.total,
+    dates: rows.map((r) => ({ date: r.date, count: r.count, total: r.total })),
+  };
 }
 
 async function getExpensesByDate(date) {

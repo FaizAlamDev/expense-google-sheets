@@ -17,6 +17,12 @@ export interface ExpenseGroup {
 }
 
 export interface DatesPage {
-  dates: string[];
+  total: number;
+  dates: DateSummary[];
+}
+
+export interface DateSummary {
+  date: string;
+  count: number;
   total: number;
 }

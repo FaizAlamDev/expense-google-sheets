@@ -52,12 +52,12 @@ Google Sheets is a **mirror**: `Sheet1` stores the date in column A, each expens
 
 Both clients ship a History view that reads and manages past expenses straight from SQLite. The web and mobile API layers call it directly (no mock layer).
 
-- `GET /api/expenses/dates?limit=&offset=` — distinct dates, newest first. Returns `{ dates: string[], total }` (total is the page count for the client's pagination).
+- `GET /api/expenses/dates?limit=&offset=` — distinct dates, newest first. Returns `{ dates: [{date, count, total}], total }` — each entry is a day row with its expense count and sum, so the UI can render the list without N+1 fetches.
 - `GET /api/expenses?date=YYYY-MM-DD` — one day's expenses. Returns `{ date, expenses[], total }`.
 - `PUT /api/expenses/:id` — body `{ name, amount }`; validates id/name/amount and returns the updated record (404 if the id doesn't exist).
 - `DELETE /api/expenses/:id` — removes the row; returns `{ success: true }` (404 if it was already gone).
 
-The History UI (`client/src/components/HistoryPage.tsx` / the matching mobile screen) loads day-by-day groups 10 per page with pagination, can search an exact date, and supports inline add/edit/delete on a day's card — each mutation re-fetches so the list stays consistent. The 10-slot-per-day invariant is still enforced server-side on `POST /api/expenses`. Edits and deletes also trigger a **best-effort background rewrite** of the affected date's row in Google Sheets (`syncDateGroupToGoogleSheets`), serialized per date.
+The History UI (`client/src/components/HistoryPage.tsx` / the matching mobile screen) shows a **paged list of date rows** (10 per page, newest first) with pagination above the list and a date search; clicking a row opens an animated **modal** with that day's full card and inline add/edit/delete (`DateGroupCard`). Each mutation re-fetches so the list stays consistent. The 10-slot-per-day invariant is still enforced server-side on `POST /api/expenses`. Edits and deletes also trigger a **best-effort background rewrite** of the affected date's row in Google Sheets (`syncDateGroupToGoogleSheets`), serialized per date.
 
 ### Authentication
 
