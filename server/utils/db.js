@@ -175,6 +175,13 @@ async function getAdjustmentById(id) {
   );
 }
 
+async function getAdjustmentsByMonth(month) {
+  return await db.all(
+    "SELECT id, month, amount, label FROM monthly_adjustments WHERE month = ? ORDER BY id ASC",
+    [month]
+  );
+}
+
 async function updateAdjustment(id, amount, label) {
   const result = await db.run(
     "UPDATE monthly_adjustments SET amount = ?, label = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -235,6 +242,7 @@ module.exports = {
   getMonthsPage,
   createAdjustment,
   getAdjustmentById,
+  getAdjustmentsByMonth,
   updateAdjustment,
   deleteAdjustment,
   getExpensesByDate,

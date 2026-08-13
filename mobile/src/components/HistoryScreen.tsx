@@ -229,10 +229,6 @@ export function HistoryScreen() {
 
   return (
     <View>
-      <Text className="text-xl font-bold mb-4 text-center">
-        Expense History
-      </Text>
-
       <SearchDateBar
         value={searchDate}
         onChange={handleSearch}

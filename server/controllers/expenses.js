@@ -1,5 +1,5 @@
 const db = require("../utils/db");
-const { syncToGoogleSheets, syncDateGroupToGoogleSheets } = require("../utils/sheetsSync");
+const { syncToGoogleSheets, syncDateGroupToGoogleSheets, syncMonthTotalToGoogleSheets } = require("../utils/sheetsSync");
 const logger = require("../utils/logger");
 
 const MAX_DAILY_EXPENSES = 10;
@@ -95,6 +95,10 @@ exports.createAdjustment = async (req, res) => {
       typeof label === "string" ? label.trim() : null
     );
     res.json(record);
+
+    syncMonthTotalToGoogleSheets(record.month).catch((syncErr) => {
+      logger.error(`Unhandled exception in background Google Sheets adjustment sync: ${syncErr.message}`);
+    });
   } catch (err) {
     logger.error("Error creating adjustment:", err);
     res.status(500).json({ error: "Failed to create adjustment" });
@@ -126,6 +130,10 @@ exports.updateAdjustment = async (req, res) => {
       return res.status(404).json({ error: "Adjustment not found" });
     }
     res.json(record);
+
+    syncMonthTotalToGoogleSheets(record.month).catch((syncErr) => {
+      logger.error(`Unhandled exception in background Google Sheets adjustment sync: ${syncErr.message}`);
+    });
   } catch (err) {
     logger.error("Error updating adjustment:", err);
     res.status(500).json({ error: "Failed to update adjustment" });
@@ -139,11 +147,20 @@ exports.deleteAdjustment = async (req, res) => {
   }
 
   try {
+    const record = await db.getAdjustmentById(id);
+    if (!record) {
+      return res.status(404).json({ error: "Adjustment not found" });
+    }
+
     const changes = await db.deleteAdjustment(id);
     if (changes === 0) {
       return res.status(404).json({ error: "Adjustment not found" });
     }
     res.json({ success: true });
+
+    syncMonthTotalToGoogleSheets(record.month).catch((syncErr) => {
+      logger.error(`Unhandled exception in background Google Sheets adjustment sync: ${syncErr.message}`);
+    });
   } catch (err) {
     logger.error("Error deleting adjustment:", err);
     res.status(500).json({ error: "Failed to delete adjustment" });

@@ -27,6 +27,224 @@ function createTotalFormula(row) {
   );
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function monthOf(dateStr) {
+  return dateStr ? String(dateStr).slice(0, 7) : "";
+}
+
+async function getSheetLayout(sheets) {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SHEET_ID,
+    range: "Sheet1!A:K",
+  });
+
+  const values = response.data.values || [];
+  let lastContentRow = 0;
+  const dayRows = [];
+  const totalRows = [];
+
+  values.forEach((rowVals, i) => {
+    const row = i + 1;
+    const a = String(rowVals[0] ?? "").trim();
+    const k = String(rowVals[10] ?? "").trim();
+    if (!a && !k) return;
+    if (row > lastContentRow) lastContentRow = row;
+    if (DATE_RE.test(a)) {
+      dayRows.push({ row, date: a });
+    } else if (k.toUpperCase() === "TOTAL") {
+      totalRows.push(row);
+    }
+  });
+
+  return { lastContentRow, dayRows, totalRows };
+}
+
+function dayRowsForMonth(dayRows, month) {
+  return dayRows.filter((r) => monthOf(r.date) === month);
+}
+
+async function formatTotalRow(sheets, totalRow) {
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: process.env.SHEET_ID,
+      resource: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId: 0,
+                startRowIndex: totalRow - 1,
+                endRowIndex: totalRow,
+                startColumnIndex: 10,
+                endColumnIndex: 12,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true },
+                  backgroundColor: { red: 1, green: 0.94, blue: 0.6 },
+                },
+              },
+              fields:
+                "userEnteredFormat.textFormat.bold,userEnteredFormat.backgroundColor",
+            },
+          },
+        ],
+      },
+    });
+    logger.info(`Formatted Total row ${totalRow} on Google Sheets (bold + highlight)`);
+  } catch (err) {
+    logger.warn(`Failed to format Total row ${totalRow} on Google Sheets: ${err.message}`);
+  }
+}
+
+async function writeMonthTotalRow(sheets, month, totalRow, dayRows) {
+  const firstDay = dayRows.length ? dayRows[0].row : 0;
+  const lastDay = dayRows.length ? dayRows[dayRows.length - 1].row : 0;
+  const adjustments = await db.getAdjustmentsByMonth(month);
+  const net = adjustments.reduce((sum, a) => sum + a.amount, 0);
+  const mValue = net === 0 ? "" : String(net);
+
+  const formula =
+    dayRows.length > 0
+      ? `=SUM(L${firstDay}:L${lastDay})+M${totalRow}`
+      : `=M${totalRow}`;
+
+  const rowData = new Array(13).fill("");
+  rowData[0] = ".";
+  rowData[10] = "Total";
+  rowData[11] = formula;
+  rowData[12] = mValue;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: process.env.SHEET_ID,
+    range: `Sheet1!A${totalRow}:M${totalRow}`,
+    valueInputOption: "USER_ENTERED",
+    resource: { values: [rowData] },
+  });
+
+  logger.info(
+    `Finalized month ${month} total on Google Sheets at row ${totalRow} (net adjustments: ${mValue || 0})`
+  );
+
+  await formatTotalRow(sheets, totalRow);
+}
+
+async function finalizePendingMonths(sheets, layout, fromMonth, toMonth) {
+  let totalRow = 0;
+  let prevTotalRow = 0;
+
+  let year = Number(fromMonth.slice(0, 4));
+  let month = Number(fromMonth.slice(5, 7));
+  const endYear = Number(toMonth.slice(0, 4));
+  const endMonth = Number(toMonth.slice(5, 7));
+
+  let iterations = 0;
+  while (year < endYear || (year === endYear && month < endMonth)) {
+    if (++iterations > 36) {
+      logger.error(
+        "Aborting month finalization: too many months between sheet state and new date."
+      );
+      break;
+    }
+
+    const mm = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+    const dayRows = dayRowsForMonth(layout.dayRows, mm);
+
+    if (dayRows.length > 0) {
+      totalRow = dayRows[dayRows.length - 1].row + 1;
+    } else {
+      totalRow = prevTotalRow ? prevTotalRow + 3 : layout.lastContentRow + 1;
+    }
+
+    if (!layout.totalRows.includes(totalRow)) {
+      await writeMonthTotalRow(sheets, mm, totalRow, dayRows);
+    }
+    prevTotalRow = totalRow;
+
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
+    }
+  }
+
+  return prevTotalRow;
+}
+
+async function computeAppendRow(sheets, layout, date) {
+  if (layout.dayRows.length === 0) {
+    return layout.lastContentRow + 1;
+  }
+
+  const lastDayRow = layout.dayRows[layout.dayRows.length - 1];
+  const newMonth = monthOf(date);
+
+  if (monthOf(lastDayRow.date) === newMonth) {
+    return layout.lastContentRow + 1;
+  }
+
+  const fromMonth = monthOf(lastDayRow.date);
+  const totalRow = await finalizePendingMonths(sheets, layout, fromMonth, newMonth);
+  return Math.max(totalRow + 3, layout.lastContentRow + 1);
+}
+
+async function syncMonthTotalToGoogleSheets(month) {
+  if (!oauth2Client.credentials) {
+    logger.warn("Google Sheets sync skipped: OAuth not authenticated.");
+    return;
+  }
+
+  try {
+    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    const layout = await getSheetLayout(sheets);
+
+    const lastDayRows = layout.dayRows.filter((r) => monthOf(r.date) === month);
+    if (lastDayRows.length === 0) {
+      logger.info(`No day rows on sheet for month ${month}; skipping adjustment sync.`);
+      return;
+    }
+
+    const totalRow = lastDayRows[lastDayRows.length - 1].row + 1;
+    if (!layout.totalRows.includes(totalRow)) {
+      logger.info(`No finalized Total row on sheet for month ${month}; skipping adjustment sync.`);
+      return;
+    }
+
+    const adjustments = await db.getAdjustmentsByMonth(month);
+    const net = adjustments.reduce((sum, a) => sum + a.amount, 0);
+    const mValue = net === 0 ? "" : String(net);
+
+    const cell = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SHEET_ID,
+      range: `Sheet1!M${totalRow}`,
+    });
+    const currentStr = String(cell.data.values?.[0]?.[0] ?? "").trim();
+    const currentNum = Number(currentStr);
+    const currentIsZero = currentStr === "" || (Number.isFinite(currentNum) && currentNum === 0);
+
+    let target = null;
+    if (mValue === "") {
+      if (!currentIsZero) target = "";
+    } else if (currentStr !== mValue) {
+      target = mValue;
+    }
+
+    if (target === null) return;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.SHEET_ID,
+      range: `Sheet1!M${totalRow}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [[target]] },
+    });
+
+    logger.info(`Synchronized adjustments (${mValue || 0}) to Total row ${totalRow} for month ${month}.`);
+  } catch (err) {
+    logger.error(`Google Sheets adjustment sync failed for month ${month}: ${err.message}`);
+  }
+}
+
 async function doSyncToGoogleSheets(date, newExpenses) {
   if (!oauth2Client.credentials) {
     logger.warn("Google Sheets sync skipped: OAuth not authenticated.");
@@ -35,7 +253,7 @@ async function doSyncToGoogleSheets(date, newExpenses) {
 
   try {
     const sheets = google.sheets({ version: "v4", auth: oauth2Client });
-    let { row, dates } = await findRowByDate(sheets, date);
+    let { row } = await findRowByDate(sheets, date);
 
     if (row > 0) {
       let { availableSlots, nextExpenseCol } = await getAvailableSlots(sheets, date);
@@ -60,7 +278,8 @@ async function doSyncToGoogleSheets(date, newExpenses) {
         },
       });
     } else {
-      row = dates.length + 1;
+      const layout = await getSheetLayout(sheets);
+      row = await computeAppendRow(sheets, layout, date);
 
       const rowData = new Array(MAX_DAILY_EXPENSES + 2).fill("");
       rowData[0] = date;
@@ -99,7 +318,7 @@ async function doSyncDateGroupToGoogleSheets(date) {
     });
 
     const sheets = google.sheets({ version: "v4", auth: oauth2Client });
-    const { row, dates } = await findRowByDate(sheets, date);
+    const { row } = await findRowByDate(sheets, date);
 
     if (row > 0) {
       await sheets.spreadsheets.values.update({
@@ -109,7 +328,8 @@ async function doSyncDateGroupToGoogleSheets(date) {
         resource: { values: [slots] },
       });
     } else {
-      const newRow = dates.length + 1;
+      const layout = await getSheetLayout(sheets);
+      const newRow = await computeAppendRow(sheets, layout, date);
       const rowData = [date, ...slots, createTotalFormula(newRow)];
 
       await sheets.spreadsheets.values.update({
@@ -134,4 +354,4 @@ async function syncDateGroupToGoogleSheets(date) {
   await enqueue(date, () => doSyncDateGroupToGoogleSheets(date));
 }
 
-module.exports = { syncToGoogleSheets, syncDateGroupToGoogleSheets };
+module.exports = { syncToGoogleSheets, syncDateGroupToGoogleSheets, syncMonthTotalToGoogleSheets };
