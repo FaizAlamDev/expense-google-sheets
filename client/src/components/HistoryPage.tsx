@@ -288,6 +288,27 @@ export function HistoryPage() {
           </div>
 
           <div className="card shadow-sm mb-4">
+            <div className="card-header">
+              <strong>Days</strong>
+            </div>
+            <div className="card-body">
+              {month.days.length === 0 ? (
+                <p className="text-muted mb-0">No expenses this month.</p>
+              ) : (
+                <div className="list-group rounded-3 py-2">
+                  {month.days.map((summary) => (
+                    <DateRow
+                      key={summary.date}
+                      summary={summary}
+                      onOpen={() => openGroup(summary.date)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
             <div className="card-header d-flex justify-content-between align-items-center">
               <strong>Adjustments</strong>
               <button
@@ -350,27 +371,6 @@ export function HistoryPage() {
                     onDelete={handleDeleteAdjustment}
                   />
                 ))
-              )}
-            </div>
-          </div>
-
-          <div className="card shadow-sm mb-4">
-            <div className="card-header">
-              <strong>Days</strong>
-            </div>
-            <div className="card-body">
-              {month.days.length === 0 ? (
-                <p className="text-muted mb-0">No expenses this month.</p>
-              ) : (
-                <div className="list-group rounded-3 py-2">
-                  {month.days.map((summary) => (
-                    <DateRow
-                      key={summary.date}
-                      summary={summary}
-                      onOpen={() => openGroup(summary.date)}
-                    />
-                  ))}
-                </div>
               )}
             </div>
           </div>

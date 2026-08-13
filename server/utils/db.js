@@ -131,7 +131,7 @@ async function getMonthsPage(limit, offset) {
        FROM expenses
        WHERE substr(date, 1, 7) = ?
        GROUP BY date
-       ORDER BY date ASC`,
+       ORDER BY date DESC`,
       [month]
     );
     const adjustments = await db.all(

@@ -293,6 +293,23 @@ export function HistoryScreen() {
           </View>
 
           <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <Text className="font-bold mb-2">Days</Text>
+            {month.days.length === 0 ? (
+              <Text className="text-gray-400">No expenses this month.</Text>
+            ) : (
+              <View className="mt-1">
+                {month.days.map((summary) => (
+                  <DateRow
+                    key={summary.date}
+                    summary={summary}
+                    onOpen={() => openGroup(summary.date)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
             <View className="flex-row justify-between items-center mb-2">
               <Text className="font-bold">Adjustments</Text>
               <Pressable
@@ -345,23 +362,6 @@ export function HistoryScreen() {
                   onDelete={handleDeleteAdjustment}
                 />
               ))
-            )}
-          </View>
-
-          <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-            <Text className="font-bold mb-2">Days</Text>
-            {month.days.length === 0 ? (
-              <Text className="text-gray-400">No expenses this month.</Text>
-            ) : (
-              <View className="mt-1">
-                {month.days.map((summary) => (
-                  <DateRow
-                    key={summary.date}
-                    summary={summary}
-                    onOpen={() => openGroup(summary.date)}
-                  />
-                ))}
-              </View>
             )}
           </View>
         </>
