@@ -3,6 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { toDateString, parseDateString } from "../utils/date";
 
 type DatePickerProps = {
   date: string;
@@ -16,8 +17,7 @@ export function DatePicker({ date, onChange, slotsLoading }: DatePickerProps) {
   const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowPicker(false);
     if (selectedDate) {
-      const iso = selectedDate.toISOString().split("T")[0];
-      onChange(iso);
+      onChange(toDateString(selectedDate));
     }
   };
 
@@ -38,7 +38,7 @@ export function DatePicker({ date, onChange, slotsLoading }: DatePickerProps) {
 
       {showPicker && (
         <DateTimePicker
-          value={date ? new Date(date) : new Date()}
+          value={date ? parseDateString(date) : new Date()}
           mode="date"
           display="default"
           onChange={handleChange}

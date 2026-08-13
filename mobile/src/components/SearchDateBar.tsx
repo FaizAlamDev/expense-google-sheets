@@ -3,6 +3,7 @@ import { View, Text, Pressable } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { toDateString, parseDateString } from "../utils/date";
 
 type SearchDateBarProps = {
   value: string;
@@ -16,7 +17,7 @@ export function SearchDateBar({ value, onChange, onClear }: SearchDateBarProps) 
   const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowPicker(false);
     if (selectedDate) {
-      onChange(selectedDate.toISOString().split("T")[0]);
+      onChange(toDateString(selectedDate));
     }
   };
 
@@ -44,7 +45,7 @@ export function SearchDateBar({ value, onChange, onClear }: SearchDateBarProps) 
 
       {showPicker && (
         <DateTimePicker
-          value={value ? new Date(value) : new Date()}
+          value={value ? parseDateString(value) : new Date()}
           mode="date"
           display="default"
           onChange={handleChange}
