@@ -2,33 +2,42 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
 } from "react-native";
-import type { DateSummary, ExpenseGroup } from "../types";
+import type {
+  AdjustmentRecord,
+  DateSummary,
+  ExpenseGroup,
+  MonthSummary,
+} from "../types";
 import {
+  createAdjustment,
   createExpense,
+  deleteAdjustment,
   deleteExpense,
-  fetchDatesPage,
   fetchExpensesByDate,
+  fetchMonthsPage,
+  updateAdjustment,
   updateExpense,
 } from "../api/expenses";
 import { SearchDateBar } from "./SearchDateBar";
-import { Pagination } from "./Pagination";
+import { MonthNav } from "./MonthNav";
 import { DateRow } from "./DateRow";
 import { DateGroupCard } from "./DateGroupCard";
+import { AdjustmentRow } from "./AdjustmentRow";
 
 type ExpensePatch = { name: string; amount: number };
-
-const PAGE_SIZE = 10;
+type AdjustmentPatch = { amount: number; label: string };
 
 export function HistoryScreen() {
   const [page, setPage] = useState(0);
-  const pageCacheRef = useRef<Map<number, DateSummary[]>>(new Map());
+  const pageCacheRef = useRef<Map<number, MonthSummary>>(new Map());
 
-  const [pageDates, setPageDates] = useState<DateSummary[] | null>(null);
+  const [month, setMonth] = useState<MonthSummary | null>(null);
   const [pageTotal, setPageTotal] = useState(0);
 
   const [searchDate, setSearchDate] = useState("");
@@ -37,31 +46,49 @@ export function HistoryScreen() {
   const [group, setGroup] = useState<ExpenseGroup | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [groupLoading, setGroupLoading] = useState(false);
+
+  const [addingAdjustment, setAddingAdjustment] = useState(false);
+  const [newAdjAmount, setNewAdjAmount] = useState("");
+  const [newAdjLabel, setNewAdjLabel] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const pageCount = Math.ceil(pageTotal / PAGE_SIZE);
+  const pageCount = pageTotal;
 
-  const loadPage = useCallback(async () => {
+  const monthName = useCallback((ym: string) => {
+    const [year, monthNum] = ym.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "long",
+    }).format(new Date(year, monthNum - 1, 1));
+  }, []);
+
+  const loadMonth = useCallback(async (target: number) => {
     setError("");
-    const cached = pageCacheRef.current.get(page);
+    const cached = pageCacheRef.current.get(target);
     if (cached) {
-      setPageDates(cached);
+      setMonth(cached);
       return;
     }
 
     setLoading(true);
     try {
-      const datesPage = await fetchDatesPage(PAGE_SIZE, page * PAGE_SIZE);
-      pageCacheRef.current.set(page, datesPage.dates);
-      setPageDates(datesPage.dates);
-      setPageTotal(datesPage.total);
+      const monthsPage = await fetchMonthsPage(1, target);
+      const first = monthsPage.months[0];
+      if (first) {
+        pageCacheRef.current.set(target, first);
+        setMonth(first);
+      } else {
+        setMonth(null);
+      }
+      setPageTotal(monthsPage.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load expenses");
+      setError(err instanceof Error ? err.message : "Failed to load month");
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, []);
 
   const loadSearch = useCallback(async (date: string) => {
     setError("");
@@ -77,18 +104,18 @@ export function HistoryScreen() {
 
   useEffect(() => {
     if (!searchDate) {
-      loadPage();
+      loadMonth(page);
     }
-  }, [searchDate, loadPage]);
+  }, [searchDate, page, loadMonth]);
 
   const refresh = useCallback(() => {
     pageCacheRef.current.clear();
     if (searchDate) {
       loadSearch(searchDate);
     } else {
-      loadPage();
+      loadMonth(page);
     }
-  }, [searchDate, loadPage, loadSearch]);
+  }, [searchDate, page, loadMonth, loadSearch]);
 
   const handleSearch = (date: string) => {
     setSearchDate(date);
@@ -100,6 +127,12 @@ export function HistoryScreen() {
   const handleClearSearch = () => {
     setSearchDate("");
     setSearchGroup(null);
+  };
+
+  const handlePageChange = (next: number) => {
+    if (next >= 0 && next < pageCount) {
+      setPage(next);
+    }
   };
 
   const openGroup = useCallback(async (date: string) => {
@@ -151,17 +184,48 @@ export function HistoryScreen() {
     }
   };
 
-  const summaries: DateSummary[] | null = searchDate
-    ? searchGroup
-      ? [
-          {
-            date: searchGroup.date,
-            count: searchGroup.expenses.length,
-            total: searchGroup.total,
-          },
-        ]
-      : null
-    : pageDates;
+  const confirmAddAdjustment = async () => {
+    const amount = parseFloat(newAdjAmount);
+    if (!Number.isFinite(amount) || amount === 0 || !month) return;
+    try {
+      await createAdjustment(month.month, amount, newAdjLabel.trim());
+      setNewAdjAmount("");
+      setNewAdjLabel("");
+      setAddingAdjustment(false);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add adjustment");
+    }
+  };
+
+  const handleUpdateAdjustment = async (id: number, patch: AdjustmentPatch) => {
+    try {
+      await updateAdjustment(id, patch);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update adjustment");
+    }
+  };
+
+  const handleDeleteAdjustment = async (id: number) => {
+    try {
+      await deleteAdjustment(id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete adjustment");
+    }
+  };
+
+  const inSearch = searchDate !== "";
+  const searchSummaries: DateSummary[] | null = searchGroup
+    ? [
+        {
+          date: searchGroup.date,
+          count: searchGroup.expenses.length,
+          total: searchGroup.total,
+        },
+      ]
+    : null;
 
   return (
     <View>
@@ -181,25 +245,129 @@ export function HistoryScreen() {
         </View>
       ) : null}
 
-      {!searchDate && (
-        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
-      )}
-
-      {loading ? (
+      {inSearch ? (
+        loading ? (
+          <ActivityIndicator size="large" color="#0d6efd" className="mt-8" />
+        ) : searchGroup && searchGroup.expenses.length === 0 ? (
+          <Text className="text-center text-gray-500 mt-8">
+            No expenses on {searchGroup.date}.
+          </Text>
+        ) : searchSummaries ? (
+          <View className="mt-1">
+            {searchSummaries.map((summary) => (
+              <DateRow
+                key={summary.date}
+                summary={summary}
+                onOpen={() => openGroup(summary.date)}
+              />
+            ))}
+          </View>
+        ) : null
+      ) : loading ? (
         <ActivityIndicator size="large" color="#0d6efd" className="mt-8" />
-      ) : summaries && summaries.length === 0 ? (
+      ) : month ? (
+        <>
+          <MonthNav
+            label={monthName(month.month)}
+            page={page}
+            pageCount={pageCount}
+            onPageChange={handlePageChange}
+          />
+
+          <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="font-bold text-lg">{monthName(month.month)}</Text>
+              <Text className="text-gray-500">
+                Grand Total{" "}
+                <Text className="font-bold">₹{month.total.toFixed(2)}</Text>
+              </Text>
+            </View>
+            <View className="flex-row justify-between">
+              <Text className="text-gray-500 text-sm">
+                Dated: ₹{month.dayTotal.toFixed(2)}
+              </Text>
+              <Text className="text-gray-500 text-sm">
+                Adjustments: ₹{month.adjustmentTotal.toFixed(2)}
+              </Text>
+            </View>
+          </View>
+
+          <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="font-bold">Adjustments</Text>
+              <Pressable
+                className="border border-blue-500 rounded-md px-3 py-1"
+                onPress={() => setAddingAdjustment((v) => !v)}
+              >
+                <Text className="text-blue-600 text-sm">
+                  {addingAdjustment ? "Cancel" : "Add adjustment"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {addingAdjustment && (
+              <View className="mb-3">
+                <Text className="mb-1 font-medium">
+                  Amount (negative subtracts)
+                </Text>
+                <TextInput
+                  value={newAdjAmount}
+                  onChangeText={setNewAdjAmount}
+                  keyboardType="numeric"
+                  className="border border-gray-300 rounded-md px-3 py-2 bg-white mb-2"
+                />
+                <Text className="mb-1 font-medium">Label</Text>
+                <TextInput
+                  value={newAdjLabel}
+                  onChangeText={setNewAdjLabel}
+                  className="border border-gray-300 rounded-md px-3 py-2 bg-white mb-2"
+                  placeholder="e.g. round-off"
+                />
+                <Pressable
+                  className="bg-green-600 rounded-md px-4 py-2 items-center"
+                  onPress={confirmAddAdjustment}
+                >
+                  <Text className="text-white font-medium">Add</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {month.adjustments.length === 0 ? (
+              <Text className="text-gray-400">
+                No adjustments this month.
+              </Text>
+            ) : (
+              month.adjustments.map((adjustment: AdjustmentRecord) => (
+                <AdjustmentRow
+                  key={adjustment.id}
+                  adjustment={adjustment}
+                  onUpdate={handleUpdateAdjustment}
+                  onDelete={handleDeleteAdjustment}
+                />
+              ))
+            )}
+          </View>
+
+          <View className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <Text className="font-bold mb-2">Days</Text>
+            {month.days.length === 0 ? (
+              <Text className="text-gray-400">No expenses this month.</Text>
+            ) : (
+              <View className="mt-1">
+                {month.days.map((summary) => (
+                  <DateRow
+                    key={summary.date}
+                    summary={summary}
+                    onOpen={() => openGroup(summary.date)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        </>
+      ) : (
         <Text className="text-center text-gray-500 mt-8">No expenses yet.</Text>
-      ) : summaries ? (
-        <View className="mt-1">
-          {summaries.map((summary) => (
-            <DateRow
-              key={summary.date}
-              summary={summary}
-              onOpen={() => openGroup(summary.date)}
-            />
-          ))}
-        </View>
-      ) : null}
+      )}
 
       <Modal
         visible={modalOpen}

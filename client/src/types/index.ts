@@ -26,3 +26,24 @@ export interface DateSummary {
   count: number;
   total: number;
 }
+
+export interface AdjustmentRecord {
+  id: number;
+  month: string;
+  amount: number;
+  label: string | null;
+}
+
+export interface MonthSummary {
+  month: string;
+  dayTotal: number;
+  adjustmentTotal: number;
+  total: number;
+  days: DateSummary[];
+  adjustments: AdjustmentRecord[];
+}
+
+export interface MonthsPage {
+  total: number;
+  months: MonthSummary[];
+}

@@ -1,28 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DateSummary, ExpenseGroup } from "../types";
+import type {
+  AdjustmentRecord,
+  DateSummary,
+  ExpenseGroup,
+  MonthSummary,
+} from "../types";
 import {
+  createAdjustment,
   createExpense,
+  deleteAdjustment,
   deleteExpense,
-  fetchDatesPage,
   fetchExpensesByDate,
+  fetchMonthsPage,
+  updateAdjustment,
   updateExpense,
 } from "../api/expenses";
 import { DateSearchBar } from "./DateSearchBar";
-import { Pagination } from "./Pagination";
+import { MonthNav } from "./MonthNav";
 import { Messages } from "./Messages";
 import { DateRow } from "./DateRow";
 import { DateGroupCard } from "./DateGroupCard";
+import { AdjustmentRow } from "./AdjustmentRow";
 import "./history.css";
 
 type ExpensePatch = { name: string; amount: number };
-
-const PAGE_SIZE = 10;
+type AdjustmentPatch = { amount: number; label: string };
 
 export function HistoryPage() {
   const [page, setPage] = useState(0);
-  const pageCacheRef = useRef<Map<number, DateSummary[]>>(new Map());
+  const pageCacheRef = useRef<Map<number, MonthSummary>>(new Map());
 
-  const [pageDates, setPageDates] = useState<DateSummary[] | null>(null);
+  const [month, setMonth] = useState<MonthSummary | null>(null);
   const [pageTotal, setPageTotal] = useState(0);
 
   const [searchDate, setSearchDate] = useState("");
@@ -31,31 +39,52 @@ export function HistoryPage() {
   const [group, setGroup] = useState<ExpenseGroup | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [groupLoading, setGroupLoading] = useState(false);
+
+  const [addingAdjustment, setAddingAdjustment] = useState(false);
+  const [newAdjAmount, setNewAdjAmount] = useState("");
+  const [newAdjLabel, setNewAdjLabel] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const pageCount = Math.ceil(pageTotal / PAGE_SIZE);
+  const pageCount = pageTotal;
 
-  const loadPage = useCallback(async () => {
-    setError("");
-    const cached = pageCacheRef.current.get(page);
-    if (cached) {
-      setPageDates(cached);
-      return;
-    }
+  const monthName = useCallback((ym: string) => {
+    const [year, monthNum] = ym.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "long",
+    }).format(new Date(year, monthNum - 1, 1));
+  }, []);
 
-    setLoading(true);
-    try {
-      const datesPage = await fetchDatesPage(PAGE_SIZE, page * PAGE_SIZE);
-      pageCacheRef.current.set(page, datesPage.dates);
-      setPageDates(datesPage.dates);
-      setPageTotal(datesPage.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load expenses");
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+  const loadMonth = useCallback(
+    async (target: number) => {
+      setError("");
+      const cached = pageCacheRef.current.get(target);
+      if (cached) {
+        setMonth(cached);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const monthsPage = await fetchMonthsPage(1, target);
+        const first = monthsPage.months[0];
+        if (first) {
+          pageCacheRef.current.set(target, first);
+          setMonth(first);
+        } else {
+          setMonth(null);
+        }
+        setPageTotal(monthsPage.total);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load month");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   const loadSearch = useCallback(async (date: string) => {
     setError("");
@@ -71,18 +100,18 @@ export function HistoryPage() {
 
   useEffect(() => {
     if (!searchDate) {
-      loadPage();
+      loadMonth(page);
     }
-  }, [searchDate, loadPage]);
+  }, [searchDate, page, loadMonth]);
 
   const refresh = useCallback(() => {
     pageCacheRef.current.clear();
     if (searchDate) {
       loadSearch(searchDate);
     } else {
-      loadPage();
+      loadMonth(page);
     }
-  }, [searchDate, loadPage, loadSearch]);
+  }, [searchDate, page, loadMonth, loadSearch]);
 
   const handleSearch = (date: string) => {
     setSearchDate(date);
@@ -94,6 +123,12 @@ export function HistoryPage() {
   const handleClearSearch = () => {
     setSearchDate("");
     setSearchGroup(null);
+  };
+
+  const handlePageChange = (next: number) => {
+    if (next >= 0 && next < pageCount) {
+      setPage(next);
+    }
   };
 
   const openGroup = useCallback(async (date: string) => {
@@ -141,17 +176,49 @@ export function HistoryPage() {
     }
   };
 
-  const summaries: DateSummary[] | null = searchDate
-    ? searchGroup
-      ? [
-          {
-            date: searchGroup.date,
-            count: searchGroup.expenses.length,
-            total: searchGroup.total,
-          },
-        ]
-      : null
-    : pageDates;
+  const confirmAddAdjustment = async () => {
+    const amount = parseFloat(newAdjAmount);
+    if (!Number.isFinite(amount) || amount === 0 || !month) return;
+    try {
+      await createAdjustment(month.month, amount, newAdjLabel.trim());
+      setNewAdjAmount("");
+      setNewAdjLabel("");
+      setAddingAdjustment(false);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add adjustment");
+    }
+  };
+
+  const handleUpdateAdjustment = async (id: number, patch: AdjustmentPatch) => {
+    try {
+      await updateAdjustment(id, patch);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update adjustment");
+    }
+  };
+
+  const handleDeleteAdjustment = async (id: number) => {
+    try {
+      await deleteAdjustment(id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete adjustment");
+    }
+  };
+
+  const searchSummaries: DateSummary[] | null = searchGroup
+    ? [
+        {
+          date: searchGroup.date,
+          count: searchGroup.expenses.length,
+          total: searchGroup.total,
+        },
+      ]
+    : null;
+
+  const inSearch = searchDate !== "";
 
   return (
     <>
@@ -163,29 +230,154 @@ export function HistoryPage() {
       />
       <Messages error={error} success="" />
 
-      {!searchDate && (
-        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
-      )}
-
-      {loading ? (
+      {inSearch ? (
+        loading ? (
+          <div className="d-flex justify-content-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        ) : searchGroup && searchGroup.expenses.length === 0 ? (
+          <p className="text-center text-muted mt-4">
+            No expenses on {searchGroup.date}.
+          </p>
+        ) : searchSummaries ? (
+          <div className="list-group shadow-sm rounded-3 py-2">
+            {searchSummaries.map((summary) => (
+              <DateRow
+                key={summary.date}
+                summary={summary}
+                onOpen={() => openGroup(summary.date)}
+              />
+            ))}
+          </div>
+        ) : null
+      ) : loading ? (
         <div className="d-flex justify-content-center py-5">
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
         </div>
-      ) : summaries && summaries.length === 0 ? (
+      ) : month ? (
+        <>
+          <MonthNav
+            label={monthName(month.month)}
+            page={page}
+            pageCount={pageCount}
+            onPageChange={handlePageChange}
+          />
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-body">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h5 className="mb-0">{monthName(month.month)}</h5>
+                <span className="text-muted">
+                  Grand Total{" "}
+                  <strong>₹{month.total.toFixed(2)}</strong>
+                </span>
+              </div>
+              <div className="d-flex justify-content-between text-muted small">
+                <span>
+                  Dated: ₹{month.dayTotal.toFixed(2)}
+                </span>
+                <span>
+                  Adjustments: ₹{month.adjustmentTotal.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <strong>Adjustments</strong>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-primary"
+                onClick={() => setAddingAdjustment((v) => !v)}
+              >
+                {addingAdjustment ? "Cancel" : "Add adjustment"}
+              </button>
+            </div>
+            <div className="card-body">
+              {addingAdjustment && (
+                <div className="row g-2 align-items-end mb-3">
+                  <div className="col-12 col-md-5">
+                    <label htmlFor="new-adj-amount" className="form-label">
+                      Amount (negative subtracts)
+                    </label>
+                    <input
+                      id="new-adj-amount"
+                      type="number"
+                      className="form-control form-control-sm"
+                      value={newAdjAmount}
+                      onChange={(e) => setNewAdjAmount(e.target.value)}
+                      step="0.01"
+                      title="Amount must be a non-zero number"
+                    />
+                  </div>
+                  <div className="col-12 col-md-4">
+                    <label htmlFor="new-adj-label" className="form-label">
+                      Label
+                    </label>
+                    <input
+                      id="new-adj-label"
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={newAdjLabel}
+                      onChange={(e) => setNewAdjLabel(e.target.value)}
+                      placeholder="e.g. round-off"
+                    />
+                  </div>
+                  <div className="col-12 col-md-3 d-flex justify-content-md-end gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success"
+                      onClick={confirmAddAdjustment}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+              {month.adjustments.length === 0 ? (
+                <p className="text-muted mb-0">No adjustments this month.</p>
+              ) : (
+                month.adjustments.map((adjustment: AdjustmentRecord) => (
+                  <AdjustmentRow
+                    key={adjustment.id}
+                    adjustment={adjustment}
+                    onUpdate={handleUpdateAdjustment}
+                    onDelete={handleDeleteAdjustment}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-header">
+              <strong>Days</strong>
+            </div>
+            <div className="card-body">
+              {month.days.length === 0 ? (
+                <p className="text-muted mb-0">No expenses this month.</p>
+              ) : (
+                <div className="list-group rounded-3 py-2">
+                  {month.days.map((summary) => (
+                    <DateRow
+                      key={summary.date}
+                      summary={summary}
+                      onOpen={() => openGroup(summary.date)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
         <p className="text-center text-muted mt-4">No expenses yet.</p>
-      ) : summaries ? (
-        <div className="list-group shadow-sm rounded-3 py-2">
-          {summaries.map((summary) => (
-            <DateRow
-              key={summary.date}
-              summary={summary}
-              onOpen={() => openGroup(summary.date)}
-            />
-          ))}
-        </div>
-      ) : null}
+      )}
 
       {modalOpen && (
         <div className="history-backdrop" onClick={() => setModalOpen(false)}>

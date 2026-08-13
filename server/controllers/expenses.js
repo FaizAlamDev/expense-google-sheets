@@ -3,6 +3,7 @@ const { syncToGoogleSheets, syncDateGroupToGoogleSheets } = require("../utils/sh
 const logger = require("../utils/logger");
 
 const MAX_DAILY_EXPENSES = 10;
+const MONTH_RE = /^\d{4}-\d{2}$/;
 
 exports.postExpenses = async (req, res) => {
   const { date, expenses } = req.body;
@@ -55,6 +56,97 @@ exports.getDates = async (req, res) => {
   } catch (err) {
     logger.error("Error fetching expense dates:", err);
     res.status(500).json({ error: "Failed to fetch expense dates" });
+  }
+};
+
+exports.getMonths = async (req, res) => {
+  try {
+    let limit = Number(req.query.limit ?? 1);
+    let offset = Number(req.query.offset ?? 0);
+    if (!Number.isInteger(limit) || limit < 1) limit = 1;
+    if (limit > 24) limit = 24;
+    if (!Number.isInteger(offset) || offset < 0) offset = 0;
+
+    res.json(await db.getMonthsPage(limit, offset));
+  } catch (err) {
+    logger.error("Error fetching expense months:", err);
+    res.status(500).json({ error: "Failed to fetch expense months" });
+  }
+};
+
+exports.createAdjustment = async (req, res) => {
+  const { month, amount, label } = req.body ?? {};
+
+  if (typeof month !== "string" || !MONTH_RE.test(month)) {
+    return res.status(400).json({ error: "month must be YYYY-MM" });
+  }
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
+    return res.status(400).json({ error: "Amount must be a non-zero number" });
+  }
+  if (label !== undefined && (typeof label !== "string" || label.trim() === "")) {
+    return res.status(400).json({ error: "Label must be a non-empty string" });
+  }
+
+  try {
+    const record = await db.createAdjustment(
+      month,
+      parsedAmount,
+      typeof label === "string" ? label.trim() : null
+    );
+    res.json(record);
+  } catch (err) {
+    logger.error("Error creating adjustment:", err);
+    res.status(500).json({ error: "Failed to create adjustment" });
+  }
+};
+
+exports.updateAdjustment = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid adjustment id" });
+  }
+
+  const { amount, label } = req.body ?? {};
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
+    return res.status(400).json({ error: "Amount must be a non-zero number" });
+  }
+  if (label !== undefined && (typeof label !== "string" || label.trim() === "")) {
+    return res.status(400).json({ error: "Label must be a non-empty string" });
+  }
+
+  try {
+    const record = await db.updateAdjustment(
+      id,
+      parsedAmount,
+      typeof label === "string" ? label.trim() : null
+    );
+    if (!record) {
+      return res.status(404).json({ error: "Adjustment not found" });
+    }
+    res.json(record);
+  } catch (err) {
+    logger.error("Error updating adjustment:", err);
+    res.status(500).json({ error: "Failed to update adjustment" });
+  }
+};
+
+exports.deleteAdjustment = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid adjustment id" });
+  }
+
+  try {
+    const changes = await db.deleteAdjustment(id);
+    if (changes === 0) {
+      return res.status(404).json({ error: "Adjustment not found" });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error("Error deleting adjustment:", err);
+    res.status(500).json({ error: "Failed to delete adjustment" });
   }
 };
 

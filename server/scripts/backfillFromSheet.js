@@ -146,19 +146,34 @@ async function main() {
   }
 
   const existing = await db.all("SELECT date, name, amount FROM expenses");
-  const seen = new Set(
-    existing.map((r) => `${r.date}\0${r.name}\0${r.amount}`)
-  );
+  const dbCounts = new Map();
+  for (const r of existing) {
+    const key = `${r.date}\0${r.name}\0${r.amount}`;
+    dbCounts.set(key, (dbCounts.get(key) ?? 0) + 1);
+  }
+
+  // Count-based reconciliation: each non-empty sheet cell is one distinct expense,
+  // even when multiple cells on the same date share the same name and amount. For
+  // each (date, name, amount) we insert the DIFFERENCE between sheet and DB counts,
+  // so genuinely duplicate expenses lost to an earlier dedup are restored and a
+  // rerun stays idempotent.
+  const sheetCounts = new Map();
+  for (const row of parsed) {
+    const key = `${row.date}\0${row.name}\0${row.amount}`;
+    sheetCounts.set(key, (sheetCounts.get(key) ?? 0) + 1);
+  }
 
   const inserts = [];
   let skipped = 0;
-  const writeKey = (r) => `${r.date}\0${r.name}\0${r.amount}`;
-  for (const row of parsed) {
-    if (seen.has(writeKey(row))) {
-      skipped++;
-    } else {
-      seen.add(writeKey(row));
-      inserts.push(row);
+  for (const [key, sheetCount] of sheetCounts) {
+    const dbCount = dbCounts.get(key) ?? 0;
+    if (sheetCount <= dbCount) {
+      skipped += sheetCount;
+      continue;
+    }
+    const [date, name, amount] = key.split("\0");
+    for (let i = 0; i < sheetCount - dbCount; i++) {
+      inserts.push({ date, name, amount: Number(amount) });
     }
   }
   logger.info(`Will insert ${inserts.length}; skip ${skipped} already present.`);

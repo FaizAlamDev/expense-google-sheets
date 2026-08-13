@@ -34,6 +34,21 @@ async function initializeDb() {
 
   await db.exec("CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date);");
 
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS monthly_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      label TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_monthly_adjustments_month ON monthly_adjustments (month);"
+  );
+
   logger.info(`SQLite database initialized successfully at: ${DB_PATH}`);
 }
 
@@ -94,6 +109,90 @@ async function getExpensesByDate(date) {
   );
 }
 
+async function getMonthsPage(limit, offset) {
+  const monthSet = `
+    SELECT substr(date, 1, 7) AS month FROM expenses
+    UNION
+    SELECT month FROM monthly_adjustments
+  `;
+
+  const rows = await db.all(
+    `SELECT month FROM (${monthSet}) ORDER BY month DESC LIMIT ? OFFSET ?`,
+    [limit, offset]
+  );
+  const rowsCount = await db.get(
+    `SELECT COUNT(*) AS total FROM (${monthSet})`
+  );
+
+  const months = [];
+  for (const { month } of rows) {
+    const days = await db.all(
+      `SELECT date, COUNT(*) AS count, SUM(amount) AS total
+       FROM expenses
+       WHERE substr(date, 1, 7) = ?
+       GROUP BY date
+       ORDER BY date ASC`,
+      [month]
+    );
+    const adjustments = await db.all(
+      "SELECT id, month, amount, label FROM monthly_adjustments WHERE month = ? ORDER BY id ASC",
+      [month]
+    );
+
+    const dayTotal = days.reduce((sum, d) => sum + d.total, 0);
+    const adjustmentTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
+
+    months.push({
+      month,
+      dayTotal,
+      adjustmentTotal,
+      total: dayTotal + adjustmentTotal,
+      days: days.map((d) => ({ date: d.date, count: d.count, total: d.total })),
+      adjustments,
+    });
+  }
+
+  return { total: rowsCount.total, months };
+}
+
+async function createAdjustment(month, amount, label) {
+  const result = await db.run(
+    "INSERT INTO monthly_adjustments (month, amount, label) VALUES (?, ?, ?)",
+    [month, amount, label ?? null]
+  );
+  const record = await db.get(
+    "SELECT id, month, amount, label FROM monthly_adjustments WHERE id = ?",
+    [result.lastID]
+  );
+  logger.info(`Inserted adjustment ${record.id} into SQLite for month: ${month}`);
+  return record;
+}
+
+async function getAdjustmentById(id) {
+  return await db.get(
+    "SELECT id, month, amount, label FROM monthly_adjustments WHERE id = ?",
+    [id]
+  );
+}
+
+async function updateAdjustment(id, amount, label) {
+  const result = await db.run(
+    "UPDATE monthly_adjustments SET amount = ?, label = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [amount, label ?? null, id]
+  );
+  if (result.changes === 0) return null;
+  logger.info(`Updated adjustment ${id} in SQLite (amount: ${amount}, label: ${label})`);
+  return getAdjustmentById(id);
+}
+
+async function deleteAdjustment(id) {
+  const result = await db.run("DELETE FROM monthly_adjustments WHERE id = ?", [id]);
+  if (result.changes > 0) {
+    logger.info(`Deleted adjustment ${id} from SQLite`);
+  }
+  return result.changes;
+}
+
 async function getExpenseById(id) {
   return await db.get(
     "SELECT id, date, name, amount FROM expenses WHERE id = ?",
@@ -133,6 +232,11 @@ module.exports = {
   insertExpenses,
   getAllExpenses,
   getDatesPage,
+  getMonthsPage,
+  createAdjustment,
+  getAdjustmentById,
+  updateAdjustment,
+  deleteAdjustment,
   getExpensesByDate,
   getExpenseById,
   updateExpense,
