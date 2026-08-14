@@ -25,6 +25,7 @@ export default {
         backgroundColor: "#ffffff",
       },
       edgeToEdgeEnabled: true,
+      softwareKeyboardLayoutMode: "resize",
       package: "com.faizalam.expensesheets",
     },
     web: {

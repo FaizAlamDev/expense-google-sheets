@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, Alert, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as Linking from "expo-linking";
@@ -34,6 +43,19 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    let subscription: { remove: () => void } | undefined;
+
+    async function confirmAuth() {
+      try {
+        const verify = await fetch(`${API_URL}/api/checkAuth`);
+        const verifyData = await verify.json();
+        if (!cancelled && verifyData.authenticated) {
+          setCheckingAuth(false);
+        }
+      } catch {
+        // ignore; the polling loop will retry
+      }
+    }
 
     async function checkAuth() {
       try {
@@ -46,21 +68,24 @@ export default function App() {
           });
 
           const authUrl = `${API_URL}/auth?platform=mobile&redirect_uri=${encodeURIComponent(redirectUri)}`;
-          const result = await WebBrowser.openAuthSessionAsync(
-            authUrl,
-            redirectUri,
-          );
 
-          if (result.type === "success" && result.url) {
-            const parsed = Linking.parse(result.url);
-
-            const verify = await fetch(`${API_URL}/api/checkAuth`);
-            const verifyData = await verify.json();
-            if (!cancelled && verifyData.authenticated) {
-              setCheckingAuth(false);
+          subscription = Linking.addEventListener("url", (event) => {
+            if (event.url.startsWith(redirectUri)) {
+              confirmAuth();
             }
-          } else {
-            console.warn("Auth flow was cancelled or failed:", result.type);
+          });
+
+          const initialUrl = await Linking.getInitialURL();
+          if (initialUrl && initialUrl.startsWith(redirectUri)) {
+            confirmAuth();
+          }
+
+          WebBrowser.openAuthSessionAsync(authUrl, redirectUri).catch(() => {});
+
+          const deadline = Date.now() + 60000;
+          while (!cancelled && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await confirmAuth();
           }
           return;
         }
@@ -77,6 +102,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      subscription?.remove();
     };
   }, []);
 
@@ -185,7 +211,15 @@ export default function App() {
 
   return (
     <View className="flex-1 bg-white">
-      <ScrollView contentContainerClassName="flex-grow px-4 py-6">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerClassName="flex-grow px-4 py-6"
+        >
         <Text className="text-2xl font-bold mb-4 text-center">
           Expense Logging App
         </Text>
@@ -259,7 +293,8 @@ export default function App() {
         )}
       </ScrollView>
 
-      <Footer />
+        <Footer />
+      </KeyboardAvoidingView>
     </View>
   );
 }
